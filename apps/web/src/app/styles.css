@@ -23,7 +23,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -150,6 +151,51 @@ h1 {
   margin-top: 12px;
 }
 
+.settingsPanel {
+  align-items: end;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 160px minmax(220px, 1fr) 190px 190px;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.settingsTitle {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.settingsPanel label {
+  display: grid;
+  gap: 6px;
+}
+
+.settingsPanel label span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.settingsPanel input:not([type="checkbox"]),
+.filters select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.settingsPanel .check,
+.inlineCheck {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-height: 38px;
+}
+
 .metrics {
   display: grid;
   gap: 16px;
@@ -188,6 +234,98 @@ h1 {
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr);
+}
+
+.ladderPanel {
+  margin-bottom: 16px;
+}
+
+.filters {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.ladder {
+  display: grid;
+  max-height: 520px;
+  overflow: auto;
+  padding: 14px 16px 18px;
+}
+
+.ladderEvent {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(90px, 0.35fr) minmax(150px, 0.8fr) minmax(260px, 1.2fr);
+  min-height: 72px;
+  padding: 8px 0;
+}
+
+.ladderEvent + .ladderEvent {
+  border-top: 1px solid var(--line);
+}
+
+.endpoint strong,
+.endpoint span,
+.message strong,
+.message span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.endpoint strong {
+  font-size: 14px;
+}
+
+.endpoint span,
+.message span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.endpoint.right {
+  text-align: right;
+}
+
+.arrow {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+}
+
+.arrow .line {
+  background: #7a8795;
+  height: 2px;
+  width: 100%;
+}
+
+.arrow .head {
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #7a8795;
+  border-top: 5px solid transparent;
+  height: 0;
+  width: 0;
+}
+
+.ladderEvent.failed .arrow .line {
+  background: var(--warning);
+}
+
+.ladderEvent.failed .arrow .head {
+  border-left-color: var(--warning);
+}
+
+.ladderEvent.failed .message {
+  background: #fff5f3;
+  border: 1px solid #efd0cd;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.ladderEmpty {
+  padding: 18px;
 }
 
 .panel {
@@ -286,10 +424,17 @@ h1 {
   text-transform: uppercase;
 }
 
+.rowError span {
+  background: #fff5f3;
+  color: #7a271a;
+}
+
 @media (max-width: 900px) {
   .shell,
   .contentGrid,
-  .metrics {
+  .metrics,
+  .settingsPanel,
+  .ladderEvent {
     grid-template-columns: 1fr;
   }
 
@@ -300,5 +445,9 @@ h1 {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .endpoint.right {
+    text-align: left;
   }
 }

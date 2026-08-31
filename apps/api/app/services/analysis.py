@@ -107,20 +107,83 @@ def analyze_events(events: list[dict]) -> TraceAnalysis:
                 }
             )
 
+    error_frames = {err.get("frame") for err in errors}
+    participants = build_participants(events)
+    procedures = build_procedures(events, error_frames)
+
     ai_context = {
         "trace_summary": {
             "event_count": len(events),
             "error_count": len(errors),
             "protocols": sorted({event.get("protocol") for event in events if event.get("protocol")}),
+            "participants": participants,
+            "procedures": procedures,
         },
         "detected_errors": errors[:50],
         "important_events": [
             event
             for event in events
             if event.get("protocol") in {"GTPv1-C", "GTPv2-C", "GTP-U", "Diameter"}
-            or event.get("frame") in {err.get("frame") for err in errors}
+            or event.get("frame") in error_frames
         ][:100],
         "instruction": "Explain only what is supported by the provided frame evidence. Cite frame numbers.",
     }
 
     return TraceAnalysis(errors=errors, ai_context=ai_context)
+
+
+def build_participants(events: list[dict]) -> list[dict]:
+    addresses = []
+    for event in events:
+        for key in ("src", "dst"):
+            address = event.get(key)
+            if isinstance(address, str) and address not in addresses:
+                addresses.append(address)
+
+    return [{"address": address, "label": infer_participant_label(address, index)} for index, address in enumerate(addresses)]
+
+
+def infer_participant_label(address: str, index: int) -> str:
+    if address.startswith("1."):
+        return "Access / UE side"
+    if address.startswith("2."):
+        return "Packet core node"
+    if address.startswith("192.168."):
+        return f"Lab node {index + 1}"
+    return address
+
+
+def build_procedures(events: list[dict], error_frames: set) -> list[dict]:
+    procedures = []
+    requests: dict[tuple[str, int | str | None], dict] = {}
+
+    for event in events:
+        message = str(event.get("message") or "")
+        key = (str(event.get("protocol") or ""), event.get("sequence_number") or event.get("teid"))
+
+        if message.endswith("Request"):
+            requests[key] = event
+            continue
+
+        if message.endswith("Response") and key in requests:
+            request = requests[key]
+            duration_ms = duration_between(request.get("time"), event.get("time"))
+            procedures.append(
+                {
+                    "request_frame": request.get("frame"),
+                    "response_frame": event.get("frame"),
+                    "protocol": event.get("protocol"),
+                    "procedure": message.replace(" Response", ""),
+                    "duration_ms": duration_ms,
+                    "status": "failed" if event.get("frame") in error_frames else "ok",
+                }
+            )
+
+    return procedures
+
+
+def duration_between(start: object, end: object) -> float | None:
+    try:
+        return round((float(end) - float(start)) * 1000, 3)
+    except (TypeError, ValueError):
+        return None

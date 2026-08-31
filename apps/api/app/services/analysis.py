@@ -71,7 +71,14 @@ GTPV2_FAILURE_CAUSES = {
 }
 
 
-def analyze_events(events: list[dict]) -> TraceAnalysis:
+def analyze_events(
+    events: list[dict],
+    endpoint_mapping: dict[str, dict[str, str]] | None = None,
+    settings: dict | None = None,
+) -> TraceAnalysis:
+    endpoint_mapping = endpoint_mapping or {}
+    settings = settings or {}
+    events = filter_events(events, settings)
     errors = []
 
     for event in events:
@@ -108,7 +115,7 @@ def analyze_events(events: list[dict]) -> TraceAnalysis:
             )
 
     error_frames = {err.get("frame") for err in errors}
-    participants = build_participants(events)
+    participants = build_participants(events, endpoint_mapping)
     procedures = build_procedures(events, error_frames)
 
     ai_context = {
@@ -118,7 +125,9 @@ def analyze_events(events: list[dict]) -> TraceAnalysis:
             "protocols": sorted({event.get("protocol") for event in events if event.get("protocol")}),
             "participants": participants,
             "procedures": procedures,
+            "endpoint_mapping_count": len(endpoint_mapping),
         },
+        "events": events,
         "detected_errors": errors[:50],
         "important_events": [
             event
@@ -132,7 +141,35 @@ def analyze_events(events: list[dict]) -> TraceAnalysis:
     return TraceAnalysis(errors=errors, ai_context=ai_context)
 
 
-def build_participants(events: list[dict]) -> list[dict]:
+def filter_events(events: list[dict], settings: dict) -> list[dict]:
+    show_heartbeats = bool(settings.get("show_heartbeats", False))
+    hide_duplicate_pfcp = bool(settings.get("hide_duplicate_pfcp", True))
+    filtered = []
+    seen_pfcp = set()
+
+    for event in events:
+        message = str(event.get("message") or "")
+        if not show_heartbeats and message in {"Echo Request", "Echo Response", "Heartbeat Request", "Heartbeat Response"}:
+            continue
+
+        if hide_duplicate_pfcp and event.get("protocol") == "PFCP":
+            signature = (
+                event.get("src"),
+                event.get("dst"),
+                event.get("message"),
+                event.get("sequence_number"),
+                event.get("cause_code"),
+            )
+            if signature in seen_pfcp:
+                continue
+            seen_pfcp.add(signature)
+
+        filtered.append(event)
+
+    return filtered
+
+
+def build_participants(events: list[dict], endpoint_mapping: dict[str, dict[str, str]]) -> list[dict]:
     addresses = []
     for event in events:
         for key in ("src", "dst"):
@@ -140,7 +177,19 @@ def build_participants(events: list[dict]) -> list[dict]:
             if isinstance(address, str) and address not in addresses:
                 addresses.append(address)
 
-    return [{"address": address, "label": infer_participant_label(address, index)} for index, address in enumerate(addresses)]
+    participants = []
+    for index, address in enumerate(addresses):
+        mapped = endpoint_mapping.get(address, {})
+        participants.append(
+            {
+                "address": address,
+                "label": mapped.get("label") or infer_participant_label(address, index),
+                "namespace": mapped.get("namespace", ""),
+                "source": mapped.get("source", "inferred"),
+            }
+        )
+
+    return participants
 
 
 def infer_participant_label(address: str, index: int) -> str:

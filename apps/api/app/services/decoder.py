@@ -11,7 +11,20 @@ class DecodeError(RuntimeError):
     pass
 
 
-def decode_pcap(path: Path) -> DecodedTrace:
+def decode_pcaps(paths: list[Path], http2_ports: list[int] | None = None) -> DecodedTrace:
+    events = []
+    for path in paths:
+        decoded = decode_pcap(path, http2_ports=http2_ports)
+        for event in decoded.events:
+            event["capture_file"] = path.name
+            event["original_frame"] = event.get("frame")
+            event["frame"] = len(events) + 1
+            events.append(event)
+
+    return DecodedTrace(trace_id=uuid4().hex, events=events)
+
+
+def decode_pcap(path: Path, http2_ports: list[int] | None = None) -> DecodedTrace:
     command = [
         "tshark",
         "-r",
@@ -19,6 +32,8 @@ def decode_pcap(path: Path) -> DecodedTrace:
         "-T",
         "json",
     ]
+    for port in http2_ports or []:
+        command.extend(["-d", f"tcp.port=={port},http2"])
 
     try:
         completed = subprocess.run(command, check=False, capture_output=True, text=True, timeout=120)
@@ -68,6 +83,15 @@ def normalize_packet(packet: dict) -> dict:
     if "diameter" in layers:
         event.update(normalize_diameter(layers["diameter"]))
 
+    if "pfcp" in layers:
+        event.update(normalize_pfcp(layers["pfcp"]))
+
+    tcp_analysis = tcp.get("tcp.analysis", {})
+    if "tcp.analysis.retransmission" in tcp_analysis or "tcp.analysis.fast_retransmission" in tcp_analysis:
+        event["is_retransmission"] = True
+    if "tcp.analysis.spurious_retransmission" in tcp_analysis:
+        event["is_spurious_retransmission"] = True
+
     return event
 
 
@@ -90,4 +114,13 @@ def normalize_diameter(diameter: dict) -> dict:
         "result_code": diameter.get("diameter.Result-Code"),
         "experimental_result_code": diameter.get("diameter.Experimental-Result-Code"),
         "application_id": diameter.get("diameter.applicationId"),
+    }
+
+
+def normalize_pfcp(pfcp: dict) -> dict:
+    return {
+        "protocol": "PFCP",
+        "message": pfcp.get("pfcp.msg_type") or pfcp.get("pfcp.message_type"),
+        "sequence_number": pfcp.get("pfcp.seq_num"),
+        "cause_code": pfcp.get("pfcp.cause"),
     }

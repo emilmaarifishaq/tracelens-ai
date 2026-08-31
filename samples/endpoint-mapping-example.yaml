@@ -1,0 +1,8 @@
+nodes:
+  1.1.1.1:
+    label: Access Gateway
+    namespace: lab
+  2.2.2.2:
+    label: SMF / PGW-C
+    namespace: packet-core
+

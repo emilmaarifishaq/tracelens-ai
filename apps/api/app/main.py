@@ -2,7 +2,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.analysis import analyze_events
-from app.services.decoder import DecodeError, decode_pcap
+from app.services.decoder import DecodeError, decode_pcaps
+from app.services.endpoint_mapping import parse_endpoint_mapping
 from app.services.storage import save_upload
 
 app = FastAPI(title="TraceLens AI API", version="0.1.0")
@@ -23,37 +24,52 @@ def health() -> dict[str, str]:
 
 @app.post("/traces")
 async def upload_trace(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
+    mapping_file: UploadFile | None = File(None),
     http2_ports: str = Form("29502,29503,29504,29507,29509,29518"),
     show_heartbeats: bool = Form(False),
     hide_duplicate_pfcp: bool = Form(True),
 ) -> dict:
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Missing filename")
+    uploads = list(files or [])
+    if file is not None:
+        uploads.append(file)
 
-    if not file.filename.endswith((".pcap", ".pcapng", ".cap")):
-        raise HTTPException(status_code=400, detail="Only PCAP, PCAPNG, or CAP files are supported")
+    if not uploads:
+        raise HTTPException(status_code=400, detail="Upload at least one PCAP, PCAPNG, or CAP file")
 
-    pcap_path = await save_upload(file)
+    for upload in uploads:
+        if not upload.filename:
+            raise HTTPException(status_code=400, detail="Missing filename")
+        if not upload.filename.endswith((".pcap", ".pcapng", ".cap")):
+            raise HTTPException(status_code=400, detail="Only PCAP, PCAPNG, or CAP files are supported")
+
+    pcap_paths = [await save_upload(upload) for upload in uploads]
+    ports = normalize_ports(http2_ports)
+    endpoint_mapping = await parse_endpoint_mapping(mapping_file)
 
     try:
-        decoded = decode_pcap(pcap_path)
+        decoded = decode_pcaps(pcap_paths, http2_ports=ports)
     except DecodeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    analysis = analyze_events(decoded.events)
+    settings = {
+        "http2_ports": ports,
+        "show_heartbeats": show_heartbeats,
+        "hide_duplicate_pfcp": hide_duplicate_pfcp,
+    }
+    analysis = analyze_events(decoded.events, endpoint_mapping=endpoint_mapping, settings=settings)
     return {
         "trace_id": decoded.trace_id,
-        "filename": file.filename,
-        "event_count": len(decoded.events),
-        "events": decoded.events[:200],
+        "filename": ", ".join(upload.filename or "trace.pcap" for upload in uploads),
+        "file_count": len(uploads),
+        "event_count": analysis.ai_context["trace_summary"]["event_count"],
+        "raw_event_count": len(decoded.events),
+        "events": analysis.ai_context["events"][:300],
         "errors": analysis.errors,
         "ai_context": analysis.ai_context,
-        "settings": {
-            "http2_ports": normalize_ports(http2_ports),
-            "show_heartbeats": show_heartbeats,
-            "hide_duplicate_pfcp": hide_duplicate_pfcp,
-        },
+        "settings": settings,
+        "endpoint_mapping_count": len(endpoint_mapping),
     }
 
 

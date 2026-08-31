@@ -123,6 +123,13 @@ h1 {
   opacity: 0.55;
 }
 
+.primary:focus-visible,
+.ladderEvent:focus-visible,
+.row:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.28);
+  outline-offset: 2px;
+}
+
 .uploadPanel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -158,7 +165,7 @@ h1 {
   border-radius: 8px;
   display: grid;
   gap: 14px;
-  grid-template-columns: 160px minmax(220px, 1fr) 190px 190px;
+  grid-template-columns: 160px minmax(210px, 1fr) minmax(190px, 0.7fr) 190px 190px;
   margin-bottom: 16px;
   padding: 16px;
 }
@@ -181,11 +188,13 @@ h1 {
 }
 
 .settingsPanel input:not([type="checkbox"]),
+.settingsPanel input[type="file"],
 .filters select {
   border: 1px solid var(--line);
   border-radius: 6px;
   min-height: 38px;
   padding: 0 10px;
+  width: 100%;
 }
 
 .settingsPanel .check,
@@ -199,7 +208,7 @@ h1 {
 .metrics {
   display: grid;
   gap: 16px;
-  grid-template-columns: 180px 180px 1fr;
+  grid-template-columns: 180px 180px 160px 1fr;
   margin-bottom: 16px;
 }
 
@@ -236,6 +245,10 @@ h1 {
   grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr);
 }
 
+.contentGrid.threeColumn {
+  grid-template-columns: minmax(300px, 0.9fr) minmax(390px, 1fr) minmax(300px, 0.75fr);
+}
+
 .ladderPanel {
   margin-bottom: 16px;
 }
@@ -255,11 +268,18 @@ h1 {
 
 .ladderEvent {
   align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  cursor: pointer;
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(150px, 0.8fr) minmax(90px, 0.35fr) minmax(150px, 0.8fr) minmax(260px, 1.2fr);
   min-height: 72px;
   padding: 8px 0;
+  text-align: left;
+  width: 100%;
 }
 
 .ladderEvent + .ladderEvent {
@@ -322,6 +342,12 @@ h1 {
   border: 1px solid #efd0cd;
   border-radius: 6px;
   padding: 10px;
+}
+
+.ladderEvent.selected {
+  background: #f0fdfa;
+  box-shadow: inset 3px 0 0 var(--accent);
+  padding-left: 8px;
 }
 
 .ladderEmpty {
@@ -402,9 +428,14 @@ h1 {
 }
 
 .row {
+  background: transparent;
+  border: 0;
   display: grid;
   grid-template-columns: 72px minmax(140px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr);
   min-height: 42px;
+  padding: 0;
+  text-align: left;
+  width: 100%;
 }
 
 .row span {
@@ -429,9 +460,43 @@ h1 {
   color: #7a271a;
 }
 
+.detailPanel {
+  min-height: 360px;
+}
+
+.detailEmpty {
+  padding: 16px;
+}
+
+.details {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.details div {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+}
+
+.details dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 900px) {
   .shell,
   .contentGrid,
+  .contentGrid.threeColumn,
   .metrics,
   .settingsPanel,
   .ladderEvent {

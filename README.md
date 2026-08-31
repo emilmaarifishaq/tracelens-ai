@@ -7,12 +7,14 @@ TraceLens AI turns uploaded PCAP/PCAPNG files into readable protocol flows, dete
 ## MVP Scope
 
 - PCAP upload API
+- Multiple PCAP upload and correlation
 - TShark-based packet decoding
 - Normalized event model
 - GTPv2-C and Diameter starter extraction
 - Rule-based error detection
 - AI-ready trace summary payload
-- Next.js web interface for trace upload, flow review, and error summary
+- Endpoint mapping with manual YAML/JSON and Kubernetes pod YAML
+- Next.js web interface for trace upload, ladder flow review, frame details, and error summary
 
 ## Target Protocols
 
@@ -84,4 +86,3 @@ uvicorn app.main:app --reload
 ## AI Design
 
 AI receives structured, redacted trace evidence instead of raw PCAP bytes. Every AI answer should cite frame numbers and state when evidence is insufficient.
-

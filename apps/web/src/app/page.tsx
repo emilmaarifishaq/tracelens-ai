@@ -26,7 +26,8 @@ type TraceResult = {
 };
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [mappingFile, setMappingFile] = useState<File | null>(null);
   const [result, setResult] = useState<TraceResult | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
   const [http2Ports, setHttp2Ports] = useState("29502,29503,29504,29507,29509,29518");
@@ -34,6 +35,7 @@ export default function Home() {
   const [hideDuplicatePfcp, setHideDuplicatePfcp] = useState(true);
   const [protocolFilter, setProtocolFilter] = useState("all");
   const [errorsOnly, setErrorsOnly] = useState(false);
+  const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
 
   const protocols = useMemo(
     () => result?.ai_context.trace_summary?.protocols?.join(", ") || "Waiting for trace",
@@ -41,6 +43,7 @@ export default function Home() {
   );
   const errorFrames = useMemo(() => new Set((result?.errors || []).map((error) => String(error.frame))), [result]);
   const participants = result?.ai_context.trace_summary?.participants || [];
+  const procedures = result?.ai_context.trace_summary?.procedures || [];
   const visibleEvents = useMemo(() => {
     const events = result?.events || [];
     return events.filter((event) => {
@@ -49,13 +52,22 @@ export default function Home() {
       return matchesProtocol && matchesError;
     });
   }, [errorFrames, errorsOnly, protocolFilter, result]);
+  const selectedEvent = useMemo(
+    () => visibleEvents.find((event) => String(event.frame) === selectedFrame) || null,
+    [selectedFrame, visibleEvents],
+  );
 
   async function uploadTrace() {
-    if (!file) return;
+    if (!files.length) return;
     setStatus("uploading");
 
     const body = new FormData();
-    body.append("file", file);
+    for (const selectedFile of files) {
+      body.append("files", selectedFile);
+    }
+    if (mappingFile) {
+      body.append("mapping_file", mappingFile);
+    }
     body.append("http2_ports", http2Ports);
     body.append("show_heartbeats", String(showHeartbeats));
     body.append("hide_duplicate_pfcp", String(hideDuplicatePfcp));
@@ -74,6 +86,7 @@ export default function Home() {
       }
 
       setResult(await response.json());
+      setSelectedFrame(null);
       setStatus("idle");
     } catch {
       setStatus("error");
@@ -105,7 +118,7 @@ export default function Home() {
             <h1>Trace Analyzer</h1>
             <p>Upload a PCAP to decode flows, detect failures, and prepare evidence for AI analysis.</p>
           </div>
-          <button className="primary" onClick={uploadTrace} disabled={!file || status === "uploading"}>
+          <button className="primary" onClick={uploadTrace} disabled={!files.length || status === "uploading"}>
             <FileUp size={18} />
             {status === "uploading" ? "Decoding" : "Analyze"}
           </button>
@@ -114,11 +127,12 @@ export default function Home() {
         <section className="uploadPanel">
           <label>
             <FileUp size={28} />
-            <span>{file ? file.name : "Choose PCAP / PCAPNG"}</span>
+            <span>{files.length ? files.map((item) => item.name).join(", ") : "Choose PCAP / PCAPNG"}</span>
             <input
               type="file"
+              multiple
               accept=".pcap,.pcapng,.cap"
-              onChange={(event) => setFile(event.target.files?.[0] || null)}
+              onChange={(event) => setFiles(Array.from(event.target.files || []))}
             />
           </label>
           {status === "error" && <p className="errorText">Decode failed. Check API status and TShark availability.</p>}
@@ -132,6 +146,14 @@ export default function Home() {
           <label>
             <span>HTTP/2 ports</span>
             <input value={http2Ports} onChange={(event) => setHttp2Ports(event.target.value)} />
+          </label>
+          <label>
+            <span>Endpoint mapping</span>
+            <input
+              type="file"
+              accept=".yaml,.yml,.json"
+              onChange={(event) => setMappingFile(event.target.files?.[0] || null)}
+            />
           </label>
           <label className="check">
             <input
@@ -154,6 +176,7 @@ export default function Home() {
         <section className="metrics">
           <Metric label="Frames decoded" value={String(result?.event_count || 0)} />
           <Metric label="Errors found" value={String(result?.errors.length || 0)} />
+          <Metric label="Procedures" value={String(procedures.length)} />
           <Metric label="Protocols" value={protocols} />
         </section>
 
@@ -179,10 +202,16 @@ export default function Home() {
               </label>
             </div>
           </div>
-          <Ladder events={visibleEvents} errorFrames={errorFrames} participants={participants} />
+          <Ladder
+            events={visibleEvents}
+            errorFrames={errorFrames}
+            participants={participants}
+            selectedFrame={selectedFrame}
+            onSelectFrame={setSelectedFrame}
+          />
         </section>
 
-        <section className="contentGrid">
+        <section className="contentGrid threeColumn">
           <div className="panel">
             <div className="panelTitle">
               <h2>Detected Errors</h2>
@@ -223,15 +252,21 @@ export default function Home() {
                 <span>Destination</span>
               </div>
               {visibleEvents.slice(0, 12).map((event) => (
-                <div className={`row ${errorFrames.has(String(event.frame)) ? "rowError" : ""}`} key={String(event.frame)}>
+                <button
+                  className={`row ${errorFrames.has(String(event.frame)) ? "rowError" : ""}`}
+                  key={String(event.frame)}
+                  onClick={() => setSelectedFrame(String(event.frame))}
+                >
                   <span>{String(event.frame)}</span>
                   <span>{String(event.protocol || event.protocols || "-")}</span>
                   <span>{String(event.src || "-")}</span>
                   <span>{String(event.dst || "-")}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
+
+          <FrameDetails event={selectedEvent} participants={participants} />
         </section>
       </section>
     </main>
@@ -242,10 +277,14 @@ function Ladder({
   events,
   errorFrames,
   participants,
+  selectedFrame,
+  onSelectFrame,
 }: {
   events: Array<Record<string, unknown>>;
   errorFrames: Set<string>;
   participants: Array<{ address: string; label: string }>;
+  selectedFrame: string | null;
+  onSelectFrame: (frame: string) => void;
 }) {
   if (!events.length) {
     return <p className="empty ladderEmpty">No flow events yet.</p>;
@@ -258,7 +297,13 @@ function Ladder({
       {events.slice(0, 80).map((event) => {
         const failed = errorFrames.has(String(event.frame));
         return (
-          <article className={`ladderEvent ${failed ? "failed" : ""}`} key={String(event.frame)}>
+          <button
+            className={`ladderEvent ${failed ? "failed" : ""} ${
+              selectedFrame === String(event.frame) ? "selected" : ""
+            }`}
+            key={String(event.frame)}
+            onClick={() => onSelectFrame(String(event.frame))}
+          >
             <div className="endpoint left">
               <strong>{labels.get(String(event.src)) || String(event.src || "-")}</strong>
               <span>{String(event.src || "-")}</span>
@@ -281,9 +326,64 @@ function Ladder({
                 {event.sequence_number ? ` | Seq ${String(event.sequence_number)}` : ""}
               </span>
             </div>
-          </article>
+          </button>
         );
       })}
+    </div>
+  );
+}
+
+function FrameDetails({
+  event,
+  participants,
+}: {
+  event: Record<string, unknown> | null;
+  participants: Array<{ address: string; label: string; namespace?: string }>;
+}) {
+  const labels = new Map(participants.map((participant) => [participant.address, participant]));
+  if (!event) {
+    return (
+      <div className="panel detailPanel">
+        <div className="panelTitle">
+          <h2>Frame Details</h2>
+          <span>Select a ladder event</span>
+        </div>
+        <p className="empty detailEmpty">No frame selected.</p>
+      </div>
+    );
+  }
+
+  const src = labels.get(String(event.src));
+  const dst = labels.get(String(event.dst));
+  const details = [
+    ["Frame", event.frame],
+    ["Capture", event.capture_file],
+    ["Original frame", event.original_frame],
+    ["Protocol", event.protocol || event.protocols],
+    ["Message", event.message],
+    ["TEID", event.teid],
+    ["Sequence", event.sequence_number],
+    ["Cause", event.cause_code],
+    ["IMSI", event.imsi],
+    ["APN", event.apn],
+    ["Source", src ? `${src.label} (${event.src})` : event.src],
+    ["Destination", dst ? `${dst.label} (${event.dst})` : event.dst],
+  ].filter(([, value]) => value !== undefined && value !== null && value !== "");
+
+  return (
+    <div className="panel detailPanel">
+      <div className="panelTitle">
+        <h2>Frame Details</h2>
+        <span>Frame {String(event.frame)}</span>
+      </div>
+      <dl className="details">
+        {details.map(([label, value]) => (
+          <div key={String(label)}>
+            <dt>{String(label)}</dt>
+            <dd>{String(value)}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

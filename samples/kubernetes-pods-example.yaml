@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: free5gc-amf-7f6c6f9b6c-xmpl1
+      namespace: free5gc
+    status:
+      podIP: 10.244.1.12
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: free5gc-smf-759bcd8f77-xmpl2
+      namespace: free5gc
+      annotations:
+        k8s.v1.cni.cncf.io/network-status: '[{"name":"n4-net","ips":["192.168.70.141"]}]'
+    status:
+      podIP: 10.244.1.21
+

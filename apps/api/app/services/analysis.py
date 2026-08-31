@@ -59,10 +59,10 @@ def analyze_events(events: list[dict]) -> TraceAnalysis:
         "important_events": [
             event
             for event in events
-            if event.get("protocol") in {"GTPv2-C", "Diameter"} or event.get("frame") in {err.get("frame") for err in errors}
+            if event.get("protocol") in {"GTPv2-C", "GTP-U", "Diameter"}
+            or event.get("frame") in {err.get("frame") for err in errors}
         ][:100],
         "instruction": "Explain only what is supported by the provided frame evidence. Cite frame numbers.",
     }
 
     return TraceAnalysis(errors=errors, ai_context=ai_context)
-

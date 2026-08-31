@@ -20,11 +20,13 @@ def main() -> int:
     for event in decoded.events[:20]:
         inner = event.get("inner") or {}
         print(
-            "frame={frame} protocol={protocol} message={message} teid={teid} src={src}:{src_port} dst={dst}:{dst_port} inner={inner_src}->{inner_dst}/{inner_proto}".format(
+            "frame={frame} protocol={protocol} message={message} teid={teid} imsi={imsi} apn={apn} src={src}:{src_port} dst={dst}:{dst_port} inner={inner_src}->{inner_dst}/{inner_proto}".format(
                 frame=event.get("frame"),
                 protocol=event.get("protocol"),
                 message=event.get("message"),
                 teid=event.get("teid"),
+                imsi=event.get("imsi", "-"),
+                apn=event.get("apn", "-"),
                 src=event.get("src"),
                 src_port=event.get("src_port"),
                 dst=event.get("dst"),

@@ -1,0 +1,23 @@
+rules:
+  - id: diameter-user-unknown
+    protocol: Diameter
+    match:
+      result_code: "5001"
+    severity: critical
+    explanation: Subscriber is unknown in HSS/UDM or routed to the wrong subscriber database.
+    recommended_checks:
+      - Verify IMSI/SUPI provisioning.
+      - Check Diameter routing realm.
+      - Confirm subscriber profile is active.
+
+  - id: gtpv2-context-not-found
+    protocol: GTPv2-C
+    match:
+      cause_code: "64"
+    severity: critical
+    explanation: Referenced tunnel/session context was not found by the receiving node.
+    recommended_checks:
+      - Check TEID correlation.
+      - Confirm whether the session was already released.
+      - Compare with prior Create Session or Modify Bearer messages.
+

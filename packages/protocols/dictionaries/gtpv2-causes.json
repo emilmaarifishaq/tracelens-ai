@@ -1,0 +1,30 @@
+{
+  "64": {
+    "name": "Context Not Found",
+    "meaning": "The referenced GTP context does not exist on the receiving node.",
+    "recommended_checks": [
+      "Check TEID mapping.",
+      "Verify whether the session was deleted earlier.",
+      "Compare request frame with previous session creation messages."
+    ]
+  },
+  "72": {
+    "name": "System Failure",
+    "meaning": "The receiving node reported an internal system failure.",
+    "recommended_checks": [
+      "Check node health and overload state.",
+      "Inspect peer logs around the failure timestamp.",
+      "Verify whether the failure is isolated or repeated."
+    ]
+  },
+  "93": {
+    "name": "APN Access Denied",
+    "meaning": "The subscriber is not allowed to access the requested APN.",
+    "recommended_checks": [
+      "Verify subscriber APN profile.",
+      "Check APN spelling and roaming restrictions.",
+      "Confirm policy control response for the session."
+    ]
+  }
+}
+

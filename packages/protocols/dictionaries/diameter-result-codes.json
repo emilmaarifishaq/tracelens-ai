@@ -1,0 +1,28 @@
+{
+  "5001": {
+    "name": "DIAMETER_ERROR_USER_UNKNOWN",
+    "meaning": "Subscriber is not known by the queried subscriber database.",
+    "recommended_checks": [
+      "Verify IMSI/SUPI provisioning.",
+      "Check Diameter realm routing.",
+      "Confirm the subscriber profile is active."
+    ]
+  },
+  "5003": {
+    "name": "DIAMETER_ERROR_IDENTITY_NOT_REGISTERED",
+    "meaning": "User identity is not currently registered.",
+    "recommended_checks": [
+      "Check registration state.",
+      "Verify HSS/UDM profile consistency."
+    ]
+  },
+  "5004": {
+    "name": "DIAMETER_ERROR_ROAMING_NOT_ALLOWED",
+    "meaning": "Subscriber is not allowed to roam in the current network.",
+    "recommended_checks": [
+      "Check roaming agreement and subscriber barring.",
+      "Verify visited PLMN permissions."
+    ]
+  }
+}
+

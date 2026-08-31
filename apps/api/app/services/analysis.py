@@ -9,13 +9,65 @@ DIAMETER_ERROR_CODES = {
 }
 
 GTPV2_FAILURE_CAUSES = {
-    "64": "Context Not Found",
-    "65": "Invalid Message Format",
-    "66": "Version Not Supported",
-    "68": "Service Not Supported",
-    "72": "System Failure",
-    "73": "No Resources Available",
-    "93": "APN Access Denied",
+    "64": {
+        "name": "Context Not Found",
+        "root_cause": "The peer could not find the referenced session or tunnel context.",
+        "recommended_checks": [
+            "Check TEID and sequence correlation against earlier session messages.",
+            "Confirm the session was not already deleted or timed out.",
+            "Inspect peer node logs around the reported frame.",
+        ],
+    },
+    "65": {
+        "name": "Invalid Message Format",
+        "root_cause": "The peer rejected the message because mandatory fields or encoding are invalid.",
+        "recommended_checks": [
+            "Validate the request IE layout against 3GPP expectations.",
+            "Check vendor interop issues or malformed optional IEs.",
+        ],
+    },
+    "66": {
+        "name": "Version Not Supported",
+        "root_cause": "The peer does not support the received GTP protocol version.",
+        "recommended_checks": [
+            "Verify interface protocol version configuration on both peers.",
+            "Check whether traffic is reaching the intended node.",
+        ],
+    },
+    "68": {
+        "name": "Service Not Supported",
+        "root_cause": "The receiving node does not support the requested service or procedure.",
+        "recommended_checks": [
+            "Confirm the target node supports the requested procedure.",
+            "Check node role and interface routing.",
+        ],
+    },
+    "72": {
+        "name": "System Failure",
+        "root_cause": "The receiving node reported an internal system failure.",
+        "recommended_checks": [
+            "Check node health, overload, and application logs.",
+            "Verify whether the failure is repeated for other subscribers.",
+            "Inspect alarms around the trace timestamp.",
+        ],
+    },
+    "73": {
+        "name": "No Resources Available",
+        "root_cause": "The receiving node could not allocate required resources for the session.",
+        "recommended_checks": [
+            "Check capacity, license, and pool utilization on the peer node.",
+            "Verify whether the condition affects one APN/DNN or all traffic.",
+        ],
+    },
+    "93": {
+        "name": "APN Access Denied",
+        "root_cause": "The subscriber or network policy does not allow access to the requested APN.",
+        "recommended_checks": [
+            "Verify the subscriber APN profile in HSS/UDM.",
+            "Check APN spelling and APN/DNN selection in the request.",
+            "Review roaming restrictions and policy-control response for this subscriber.",
+        ],
+    },
 }
 
 
@@ -38,14 +90,20 @@ def analyze_events(events: list[dict]) -> TraceAnalysis:
 
         gtp_cause = str(event.get("cause_code") or "")
         if gtp_cause in GTPV2_FAILURE_CAUSES:
+            failure = GTPV2_FAILURE_CAUSES[gtp_cause]
             errors.append(
                 {
                     "frame": event.get("frame"),
                     "severity": "critical",
                     "protocol": "GTPv2-C",
                     "code": gtp_cause,
-                    "error": GTPV2_FAILURE_CAUSES[gtp_cause],
-                    "evidence": f"GTPv2-C cause {gtp_cause} at frame {event.get('frame')}",
+                    "error": failure["name"],
+                    "root_cause": failure["root_cause"],
+                    "recommended_checks": failure["recommended_checks"],
+                    "evidence": (
+                        f"{event.get('message', 'GTPv2-C message')} returned cause {gtp_cause} "
+                        f"({failure['name']}) at frame {event.get('frame')}"
+                    ),
                 }
             )
 

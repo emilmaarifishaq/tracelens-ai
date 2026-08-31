@@ -7,8 +7,8 @@ type TraceResult = {
   trace_id: string;
   filename: string;
   event_count: number;
-  events: Array<Record<string, string | number | null>>;
-  errors: Array<Record<string, string | number | null>>;
+  events: Array<Record<string, unknown>>;
+  errors: Array<Record<string, unknown>>;
   ai_context: {
     trace_summary?: {
       event_count?: number;
@@ -116,6 +116,14 @@ export default function Home() {
                     Frame {String(error.frame)} | {String(error.protocol)} | Code {String(error.code)}
                   </span>
                   <p>{String(error.evidence)}</p>
+                  {typeof error.root_cause === "string" && <p className="rootCause">{error.root_cause}</p>}
+                  {asStringList(error.recommended_checks).length > 0 && (
+                    <ul>
+                      {asStringList(error.recommended_checks).map((check) => (
+                        <li key={check}>{check}</li>
+                      ))}
+                    </ul>
+                  )}
                 </article>
               ))}
               {!result?.errors.length && <p className="empty">No decoded errors yet.</p>}
@@ -150,6 +158,10 @@ export default function Home() {
   );
 }
 
+function asStringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="metric">
@@ -158,4 +170,3 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

@@ -239,6 +239,22 @@ h1 {
   margin-top: 8px;
 }
 
+.errorItem .rootCause {
+  color: #172026;
+  font-weight: 700;
+}
+
+.errorItem ul {
+  color: #39424e;
+  font-size: 14px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.errorItem li + li {
+  margin-top: 4px;
+}
+
 .empty {
   color: var(--muted);
 }
@@ -286,4 +302,3 @@ h1 {
     flex-direction: column;
   }
 }
-

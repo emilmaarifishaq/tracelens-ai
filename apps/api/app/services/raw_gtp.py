@@ -120,6 +120,10 @@ def _decode_gtp_packet(packet: bytes) -> dict | None:
     }
 
     gtp_header_length = _gtp_header_length(version, flags)
+    sequence_number = _gtp_sequence_number(packet, gtp_offset, version, gtp_header_length)
+    if sequence_number is not None:
+        event["sequence_number"] = sequence_number
+
     payload_offset = gtp_offset + gtp_header_length
     if protocol == "GTP-U":
         inner = _decode_inner_ipv4(packet, payload_offset)
@@ -137,6 +141,16 @@ def _gtp_header_length(version: int, flags: int) -> int:
     if version == 2:
         return 12 if flags & 0x08 else 8
     return 12 if flags & 0x07 else 8
+
+
+def _gtp_sequence_number(packet: bytes, gtp_offset: int, version: int, header_length: int) -> int | None:
+    if header_length < 12 or len(packet) < gtp_offset + 11:
+        return None
+
+    if version == 2:
+        return int.from_bytes(packet[gtp_offset + 8 : gtp_offset + 11], "big")
+
+    return int.from_bytes(packet[gtp_offset + 8 : gtp_offset + 10], "big")
 
 
 def _decode_gtpv1_ies(payload: bytes) -> dict:

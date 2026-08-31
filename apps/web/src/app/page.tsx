@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AlertTriangle, Brain, FileUp, Network, Search, Settings2 } from "lucide-react";
+import { Activity, AlertTriangle, Brain, FileUp, Network, Search, Settings2, Shield } from "lucide-react";
 import { useMemo, useState } from "react";
 
 type TraceResult = {
@@ -25,6 +25,20 @@ type TraceResult = {
   };
 };
 
+type AiAnalysis = {
+  provider: string;
+  mode: string;
+  ai_used: boolean;
+  masked: boolean;
+  summary: string;
+  root_cause: string;
+  confidence: string;
+  evidence: string[];
+  recommended_actions: string[];
+  ai_text?: string;
+  ai_error?: string;
+};
+
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
   const [mappingFile, setMappingFile] = useState<File | null>(null);
@@ -36,6 +50,10 @@ export default function Home() {
   const [protocolFilter, setProtocolFilter] = useState("all");
   const [errorsOnly, setErrorsOnly] = useState(false);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
+  const [aiQuestion, setAiQuestion] = useState("Explain the failure and recommended troubleshooting steps.");
+  const [maskIdentifiers, setMaskIdentifiers] = useState(true);
+  const [aiStatus, setAiStatus] = useState<"idle" | "analyzing" | "error">("idle");
+  const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
 
   const protocols = useMemo(
     () => result?.ai_context.trace_summary?.protocols?.join(", ") || "Waiting for trace",
@@ -87,9 +105,40 @@ export default function Home() {
 
       setResult(await response.json());
       setSelectedFrame(null);
+      setAiAnalysis(null);
       setStatus("idle");
     } catch {
       setStatus("error");
+    }
+  }
+
+  async function explainTrace() {
+    if (!result) return;
+    setAiStatus("analyzing");
+
+    try {
+      const apiBaseUrl =
+        process.env.NEXT_PUBLIC_API_BASE_URL ||
+        `${window.location.protocol}//${window.location.hostname}:8000`;
+      const response = await fetch(`${apiBaseUrl}/analysis/explain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ai_context: result.ai_context,
+          question: aiQuestion,
+          use_ai: true,
+          mask_identifiers: maskIdentifiers,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      setAiAnalysis(await response.json());
+      setAiStatus("idle");
+    } catch {
+      setAiStatus("error");
     }
   }
 
@@ -211,6 +260,33 @@ export default function Home() {
           />
         </section>
 
+        <section className="panel aiPanel">
+          <div className="panelTitle">
+            <h2>AI Analysis</h2>
+            <span>{aiAnalysis ? `${aiAnalysis.provider} | ${aiAnalysis.mode}` : "Evidence-based explanation"}</span>
+          </div>
+          <div className="aiControls">
+            <label>
+              <span>Question</span>
+              <input value={aiQuestion} onChange={(event) => setAiQuestion(event.target.value)} />
+            </label>
+            <label className="inlineCheck">
+              <input
+                type="checkbox"
+                checked={maskIdentifiers}
+                onChange={(event) => setMaskIdentifiers(event.target.checked)}
+              />
+              <span><Shield size={15} /> Mask identifiers</span>
+            </label>
+            <button className="primary" onClick={explainTrace} disabled={!result || aiStatus === "analyzing"}>
+              <Brain size={18} />
+              {aiStatus === "analyzing" ? "Analyzing" : "Explain"}
+            </button>
+          </div>
+          {aiStatus === "error" && <p className="errorText aiMessage">AI analysis failed. Backend fallback may need review.</p>}
+          {aiAnalysis ? <AiAnalysisView analysis={aiAnalysis} /> : <p className="empty aiMessage">No analysis generated yet.</p>}
+        </section>
+
         <section className="contentGrid threeColumn">
           <div className="panel">
             <div className="panelTitle">
@@ -270,6 +346,50 @@ export default function Home() {
         </section>
       </section>
     </main>
+  );
+}
+
+function AiAnalysisView({ analysis }: { analysis: AiAnalysis }) {
+  return (
+    <div className="aiResult">
+      {analysis.ai_text ? (
+        <article>
+          <strong>AI Explanation</strong>
+          <p>{analysis.ai_text}</p>
+        </article>
+      ) : null}
+      <article>
+        <strong>Summary</strong>
+        <p>{analysis.summary}</p>
+      </article>
+      <article>
+        <strong>Root Cause</strong>
+        <p>{analysis.root_cause}</p>
+      </article>
+      <article>
+        <strong>Confidence</strong>
+        <p>{analysis.confidence}</p>
+      </article>
+      {analysis.evidence.length > 0 && (
+        <article>
+          <strong>Evidence</strong>
+          <ul>
+            {analysis.evidence.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </article>
+      )}
+      <article>
+        <strong>Recommended Actions</strong>
+        <ul>
+          {analysis.recommended_actions.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </article>
+      {analysis.ai_error ? <p className="errorText">{analysis.ai_error}</p> : null}
+    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.services.ai_analysis import explain_trace_context
 from app.services.analysis import analyze_events
 from app.services.decoder import DecodeError, decode_pcaps
 from app.services.endpoint_mapping import parse_endpoint_mapping
@@ -81,6 +82,23 @@ def build_ai_context(payload: dict) -> dict:
 
     analysis = analyze_events(events)
     return analysis.ai_context
+
+
+@app.post("/analysis/explain")
+def explain_trace(payload: dict) -> dict:
+    ai_context = payload.get("ai_context")
+    if not isinstance(ai_context, dict):
+        events = payload.get("events", [])
+        if not isinstance(events, list):
+            raise HTTPException(status_code=400, detail="ai_context must be an object or events must be a list")
+        ai_context = analyze_events(events).ai_context
+
+    return explain_trace_context(
+        ai_context=ai_context,
+        question=str(payload.get("question") or ""),
+        use_ai=bool(payload.get("use_ai", True)),
+        mask_identifiers=bool(payload.get("mask_identifiers", True)),
+    )
 
 
 def normalize_ports(value: str) -> list[int]:

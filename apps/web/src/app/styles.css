@@ -189,6 +189,7 @@ h1 {
 
 .settingsPanel input:not([type="checkbox"]),
 .settingsPanel input[type="file"],
+.aiControls input,
 .filters select {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -251,6 +252,63 @@ h1 {
 
 .ladderPanel {
   margin-bottom: 16px;
+}
+
+.aiPanel {
+  margin-bottom: 16px;
+}
+
+.aiControls {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 1fr) 180px 130px;
+  padding: 16px;
+}
+
+.aiControls label:not(.inlineCheck) {
+  display: grid;
+  gap: 6px;
+}
+
+.aiControls label span {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.aiMessage {
+  padding: 0 16px 16px;
+}
+
+.aiResult {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0;
+}
+
+.aiResult article {
+  border-bottom: 1px solid var(--line);
+  padding: 14px 16px;
+}
+
+.aiResult strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.aiResult p,
+.aiResult li {
+  color: #39424e;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.aiResult ul {
+  margin: 0;
+  padding-left: 18px;
 }
 
 .filters {
@@ -499,6 +557,7 @@ h1 {
   .contentGrid.threeColumn,
   .metrics,
   .settingsPanel,
+  .aiControls,
   .ladderEvent {
     grid-template-columns: 1fr;
   }

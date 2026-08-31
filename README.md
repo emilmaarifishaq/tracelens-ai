@@ -13,8 +13,9 @@ TraceLens AI turns uploaded PCAP/PCAPNG files into readable protocol flows, dete
 - GTPv2-C and Diameter starter extraction
 - Rule-based error detection
 - AI-ready trace summary payload
+- AI explanation endpoint with offline fallback
 - Endpoint mapping with manual YAML/JSON and Kubernetes pod YAML
-- Next.js web interface for trace upload, ladder flow review, frame details, and error summary
+- Next.js web interface for trace upload, ladder flow review, frame details, error summary, and AI analysis
 
 ## Target Protocols
 
@@ -86,3 +87,12 @@ uvicorn app.main:app --reload
 ## AI Design
 
 AI receives structured, redacted trace evidence instead of raw PCAP bytes. Every AI answer should cite frame numbers and state when evidence is insufficient.
+
+The API exposes `POST /analysis/explain`. Without `OPENAI_API_KEY`, TraceLens returns the local rule-engine explanation so troubleshooting still works offline. When `OPENAI_API_KEY` is configured, the same endpoint sends the masked AI context to the OpenAI Responses API and includes the model answer beside the rule-engine baseline.
+
+Optional environment:
+
+```bash
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5
+```

@@ -88,11 +88,18 @@ uvicorn app.main:app --reload
 
 AI receives structured, redacted trace evidence instead of raw PCAP bytes. Every AI answer should cite frame numbers and state when evidence is insufficient.
 
-The API exposes `POST /analysis/explain`. Without `OPENAI_API_KEY`, TraceLens returns the local rule-engine explanation so troubleshooting still works offline. When `OPENAI_API_KEY` is configured, the same endpoint sends the masked AI context to the OpenAI Responses API and includes the model answer beside the rule-engine baseline.
+The API exposes `POST /analysis/explain`. Without an AI provider key, TraceLens returns the local rule-engine explanation so troubleshooting still works offline. When an AI provider is configured, the same endpoint sends the masked AI context to the provider and includes the model answer beside the rule-engine baseline.
+
+TraceLens is designed as a provider gateway, not an OpenAI-only tool. The first supported hosted provider is OpenAI Responses. The same boundary can support OpenAI-compatible endpoints later, including private enterprise gateways or local model servers.
+
+Optional web search is a separate switch. When `AI_WEB_SEARCH_ENABLED=true` with the OpenAI provider, TraceLens can let the model use hosted web search for public references such as standards notes, vendor documentation, or known error-code context. Raw PCAP bytes are still not sent; the model receives only the structured, masked trace evidence.
 
 Optional environment:
 
 ```bash
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-5
+AI_PROVIDER=openai
+AI_API_KEY=sk-...
+AI_MODEL=gpt-5
+AI_BASE_URL=https://api.openai.com/v1/responses
+AI_WEB_SEARCH_ENABLED=true
 ```

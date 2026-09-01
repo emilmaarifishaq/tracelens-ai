@@ -7,6 +7,7 @@ from typing import Any
 
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
+DEFAULT_MODEL = "gpt-5"
 
 
 def explain_trace_context(
@@ -18,18 +19,19 @@ def explain_trace_context(
     masked_context = mask_context(ai_context) if mask_identifiers else ai_context
     fallback = build_rule_based_explanation(masked_context, question)
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not use_ai or not api_key:
+    config = load_ai_config()
+    if not use_ai or config["provider"] == "rule-engine" or not config["api_key"]:
         return {
             **fallback,
             "provider": "rule-engine",
             "mode": "offline",
             "ai_used": False,
             "masked": mask_identifiers,
+            "web_search_used": False,
         }
 
     try:
-        ai_text = call_openai(masked_context, fallback, question, api_key)
+        ai_text = call_ai_provider(masked_context, fallback, question, config)
     except RuntimeError as exc:
         return {
             **fallback,
@@ -37,15 +39,17 @@ def explain_trace_context(
             "mode": "offline-fallback",
             "ai_used": False,
             "masked": mask_identifiers,
+            "web_search_used": False,
             "ai_error": str(exc),
         }
 
     return {
         **fallback,
-        "provider": "openai",
-        "mode": "ai-assisted",
+        "provider": config["provider"],
+        "mode": "ai-web-assisted" if config["web_search_enabled"] else "ai-assisted",
         "ai_used": True,
         "masked": mask_identifiers,
+        "web_search_used": config["web_search_enabled"],
         "ai_text": ai_text,
     }
 
@@ -108,21 +112,42 @@ def build_rule_based_explanation(ai_context: dict, question: str = "") -> dict:
     }
 
 
-def call_openai(ai_context: dict, fallback: dict, question: str, api_key: str) -> str:
-    model = os.getenv("OPENAI_MODEL", "gpt-5")
-    payload = {
+def load_ai_config() -> dict[str, Any]:
+    provider = os.getenv("AI_PROVIDER", "").strip().lower()
+    api_key = os.getenv("AI_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+    if not provider:
+        provider = "openai" if api_key else "rule-engine"
+
+    model = os.getenv("AI_MODEL") or os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
+    base_url = os.getenv("AI_BASE_URL") or OPENAI_RESPONSES_URL
+    web_search_enabled = env_bool("AI_WEB_SEARCH_ENABLED", False)
+
+    return {
+        "provider": provider,
+        "api_key": api_key,
         "model": model,
+        "base_url": base_url,
+        "web_search_enabled": web_search_enabled and provider == "openai",
+    }
+
+
+def call_ai_provider(ai_context: dict, fallback: dict, question: str, config: dict[str, Any]) -> str:
+    payload = {
+        "model": config["model"],
         "instructions": (
             "You are a telecom packet-trace troubleshooting assistant. Explain only conclusions supported by "
             "the supplied decoded trace evidence. Cite frame numbers. If evidence is insufficient, say so."
         ),
         "input": build_prompt(ai_context, fallback, question),
     }
+    if config["web_search_enabled"]:
+        payload["tools"] = [{"type": "web_search"}]
+
     request = urllib.request.Request(
-        OPENAI_RESPONSES_URL,
+        config["base_url"],
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {config['api_key']}",
             "Content-Type": "application/json",
         },
         method="POST",
@@ -133,9 +158,9 @@ def call_openai(ai_context: dict, fallback: dict, question: str, api_key: str) -
             body = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"OpenAI request failed: HTTP {exc.code} {detail[:300]}") from exc
+        raise RuntimeError(f"AI provider request failed: HTTP {exc.code} {detail[:300]}") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
-        raise RuntimeError(f"OpenAI request failed: {exc}") from exc
+        raise RuntimeError(f"AI provider request failed: {exc}") from exc
 
     output_text = body.get("output_text")
     if isinstance(output_text, str) and output_text.strip():
@@ -145,7 +170,14 @@ def call_openai(ai_context: dict, fallback: dict, question: str, api_key: str) -
     if extracted:
         return extracted
 
-    raise RuntimeError("OpenAI response did not contain text output")
+    raise RuntimeError("AI provider response did not contain text output")
+
+
+def env_bool(name: str, default: bool) -> bool:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def build_prompt(ai_context: dict, fallback: dict, question: str) -> str:

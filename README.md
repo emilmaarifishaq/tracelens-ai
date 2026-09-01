@@ -107,3 +107,12 @@ AI_WEB_SEARCH_ENABLED=true
 ## Sample Capture Testing
 
 TraceLens uses generated telecom samples for controlled failure tests and will use selected public captures for protocol regression coverage. See [docs/sample-capture-strategy.md](docs/sample-capture-strategy.md).
+
+Curated 4G/5G sample metadata lives in [samples/external-captures.yaml](samples/external-captures.yaml). Download approved external captures locally with:
+
+```bash
+apps/api/.venv/bin/python samples/download_external_captures.py --technology 5G
+apps/api/.venv/bin/python samples/download_external_captures.py --technology 4G
+```
+
+Downloaded captures are stored under `samples/external/` and are intentionally ignored by Git.

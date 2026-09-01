@@ -1,0 +1,184 @@
+# External captures are downloaded into samples/external/ and are not committed.
+# Keep this file as metadata only: source, telecom purpose, expected protocols, and notes.
+
+captures:
+  - id: telekom-free5gc-basic-5g
+    technology: 5G
+    source: telekom/5g-trace-visualizer
+    source_page: https://github.com/telekom/5g-trace-visualizer/blob/master/doc/free5gc.pcap
+    download_url: https://raw.githubusercontent.com/telekom/5g-trace-visualizer/master/doc/free5gc.pcap
+    local_path: samples/external/free5gc.pcap
+    scenario: free5GC control and user-plane trace used by 5g-trace-visualizer
+    interfaces:
+      - N2
+      - N3
+      - N4
+      - SBI
+    expected_protocols:
+      - NGAP
+      - SCTP
+      - PFCP
+      - GTP-U
+      - HTTP/2
+    tracelens_use:
+      - 5G ladder view regression
+      - PFCP and GTP-U normalization
+      - HTTP/2 SBI port override testing
+      - Multi-protocol procedure correlation
+
+  - id: colte-lte-no-user-info
+    technology: 4G
+    source: Community LTE Project PCAP Library
+    source_page: https://blog.colte.network/pcap-library/
+    archive_url: https://blog.colte.network/wp-content/uploads/2020/03/pcaps.zip
+    archive_member: pcaps/0_nouserinfo.pcap
+    local_path: samples/external/colte/pcaps/0_nouserinfo.pcap
+    scenario: UE attach attempt without subscriber information in the database, ending in Attach Reject
+    interfaces:
+      - S1-MME
+      - S6a
+    expected_protocols:
+      - S1AP
+      - Diameter
+      - SCTP
+    expected_failure: Attach Reject after HSS query
+    tracelens_use:
+      - LTE attach failure root-cause detection
+      - Diameter/S1AP correlation
+
+  - id: colte-lte-wrong-key
+    technology: 4G
+    source: Community LTE Project PCAP Library
+    source_page: https://blog.colte.network/pcap-library/
+    archive_url: https://blog.colte.network/wp-content/uploads/2020/03/pcaps.zip
+    archive_member: pcaps/1_wrongkey.pcap
+    local_path: samples/external/colte/pcaps/1_wrongkey.pcap
+    scenario: UE attach with incorrect key information, reaching Authentication Failure
+    interfaces:
+      - S1-MME
+      - S6a
+    expected_protocols:
+      - S1AP
+      - Diameter
+      - SCTP
+    expected_failure: Authentication Failure
+    tracelens_use:
+      - LTE authentication failure rule coverage
+      - Subscriber credential mismatch explanation
+
+  - id: colte-lte-first-attach
+    technology: 4G
+    source: Community LTE Project PCAP Library
+    source_page: https://blog.colte.network/pcap-library/
+    archive_url: https://blog.colte.network/wp-content/uploads/2020/03/pcaps.zip
+    archive_member: pcaps/2_firstattach.pcap
+    local_path: samples/external/colte/pcaps/2_firstattach.pcap
+    scenario: Successful LTE initial attach with S1AP, Diameter, GTPv2-C, GTP-U, and user-plane traffic
+    interfaces:
+      - S1-MME
+      - S1-U
+      - S6a
+      - S11
+      - SGi
+    expected_protocols:
+      - S1AP
+      - Diameter
+      - GTPv2-C
+      - GTP-U
+      - DNS
+      - HTTP
+      - TLS
+    expected_failure: none
+    tracelens_use:
+      - LTE successful attach baseline
+      - GTP control/user-plane correlation
+      - No-failure AI explanation sanity check
+
+  - id: colte-lte-reattach
+    technology: 4G
+    source: Community LTE Project PCAP Library
+    source_page: https://blog.colte.network/pcap-library/
+    archive_url: https://blog.colte.network/wp-content/uploads/2020/03/pcaps.zip
+    archive_member: pcaps/3_reattach.pcap
+    local_path: samples/external/colte/pcaps/3_reattach.pcap
+    scenario: Handset detach and reattach with shorter security flow
+    interfaces:
+      - S1-MME
+      - S1-U
+      - S6a
+      - S11
+    expected_protocols:
+      - S1AP
+      - Diameter
+      - GTPv2-C
+      - GTP-U
+      - DNS
+      - HTTP
+      - TLS
+    expected_failure: none
+    tracelens_use:
+      - LTE reattach timing baseline
+      - Procedure duration comparison with first attach
+
+  - id: colte-lte-ims-sip-register
+    technology: 4G
+    source: Community LTE Project PCAP Library
+    source_page: https://blog.colte.network/pcap-library/
+    archive_url: https://blog.colte.network/wp-content/uploads/2020/03/pcaps.zip
+    archive_member: pcaps/4_sip.pcap
+    local_path: samples/external/colte/pcaps/4_sip.pcap
+    scenario: LTE attach, IMS APN establishment, and SIP REGISTER toward P-CSCF
+    interfaces:
+      - S1-MME
+      - S1-U
+      - S6a
+      - S11
+      - IMS
+    expected_protocols:
+      - S1AP
+      - Diameter
+      - GTPv2-C
+      - GTP-U
+      - SIP
+    expected_failure: none
+    tracelens_use:
+      - VoLTE and IMS ladder baseline
+      - IMS APN establishment correlation
+
+supporting_captures:
+  - id: wireshark-sctp-handshake
+    technology: 4G/5G transport
+    source: Wireshark SampleCaptures
+    source_page: https://wiki.wireshark.org/samplecaptures
+    download_url: https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/sctp-test.cap
+    local_path: samples/external/wireshark/sctp-test.cap
+    scenario: SCTP handshaking and DATA/SACK chunks
+    expected_protocols:
+      - SCTP
+    tracelens_use:
+      - S1AP/NGAP transport ladder baseline
+
+  - id: wireshark-sctp-init-collision
+    technology: 4G/5G transport
+    source: Wireshark SampleCaptures
+    source_page: https://wiki.wireshark.org/samplecaptures
+    download_url: https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/SCTP-INIT-Collision.cap
+    local_path: samples/external/wireshark/SCTP-INIT-Collision.cap
+    scenario: SCTP association setup collision
+    expected_protocols:
+      - SCTP
+    tracelens_use:
+      - SCTP abnormal setup detection
+
+  - id: wireshark-sip-rtp-basic
+    technology: IMS/VoLTE support
+    source: Wireshark SampleCaptures
+    source_page: https://wiki.wireshark.org/samplecaptures
+    download_url: https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/aaa.pcap
+    local_path: samples/external/wireshark/aaa.pcap
+    scenario: SIP and RTP traffic
+    expected_protocols:
+      - SIP
+      - RTP
+    tracelens_use:
+      - IMS media/session ladder baseline

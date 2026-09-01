@@ -10,6 +10,7 @@ dist/
 build/
 uploads/
 decoded/
+samples/external/
 *.pcap
 *.pcapng
 samples/gtpc_pktgen.py

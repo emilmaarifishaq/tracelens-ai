@@ -94,6 +94,8 @@ TraceLens is designed as a provider gateway, not an OpenAI-only tool. The first 
 
 Optional web search is a separate switch. When `AI_WEB_SEARCH_ENABLED=true` with the OpenAI provider, TraceLens can let the model use hosted web search for public references such as standards notes, vendor documentation, or known error-code context. Raw PCAP bytes are still not sent; the model receives only the structured, masked trace evidence.
 
+If no API key is available, use the ChatGPT Web handoff in the UI. After decoding a trace, click `Copy ChatGPT Prompt`, open https://chatgpt.com/, and paste the generated masked prompt. This keeps TraceLens usable with a normal ChatGPT web account while avoiding brittle browser automation.
+
 Optional environment:
 
 ```bash

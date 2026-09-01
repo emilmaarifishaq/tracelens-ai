@@ -5,7 +5,9 @@ import {
   AlertTriangle,
   Brain,
   CheckCircle2,
+  Clipboard,
   Clock3,
+  ExternalLink,
   FileUp,
   Network,
   Search,
@@ -66,6 +68,7 @@ export default function Home() {
   const [maskIdentifiers, setMaskIdentifiers] = useState(true);
   const [aiStatus, setAiStatus] = useState<"idle" | "analyzing" | "error">("idle");
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
+  const [chatGptStatus, setChatGptStatus] = useState<"idle" | "copied" | "error">("idle");
 
   const protocols = useMemo(
     () => result?.ai_context.trace_summary?.protocols?.join(", ") || "Waiting for trace",
@@ -154,6 +157,23 @@ export default function Home() {
     } catch {
       setAiStatus("error");
     }
+  }
+
+  async function copyChatGptPrompt() {
+    if (!result) return;
+    const prompt = buildChatGptPrompt(result, aiQuestion, maskIdentifiers);
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setChatGptStatus("copied");
+      window.setTimeout(() => setChatGptStatus("idle"), 2500);
+    } catch {
+      setChatGptStatus("error");
+    }
+  }
+
+  function openChatGpt() {
+    window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -301,6 +321,23 @@ export default function Home() {
               <Brain size={18} />
               {aiStatus === "analyzing" ? "Analyzing" : "Explain"}
             </button>
+          </div>
+          <div className="chatGptHandoff">
+            <button onClick={copyChatGptPrompt} disabled={!result}>
+              <Clipboard size={17} />
+              Copy ChatGPT Prompt
+            </button>
+            <button onClick={openChatGpt}>
+              <ExternalLink size={17} />
+              Open ChatGPT
+            </button>
+            <span>
+              {chatGptStatus === "copied"
+                ? "Prompt copied"
+                : chatGptStatus === "error"
+                  ? "Copy failed"
+                  : "No API key needed"}
+            </span>
           </div>
           {aiStatus === "error" && <p className="errorText aiMessage">AI analysis failed. Backend fallback may need review.</p>}
           {aiAnalysis ? <AiAnalysisView analysis={aiAnalysis} /> : <p className="empty aiMessage">No analysis generated yet.</p>}
@@ -662,6 +699,64 @@ function FrameDetails({
 
 function asStringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function buildChatGptPrompt(result: TraceResult, question: string, maskIdentifiers: boolean) {
+  const context = maskIdentifiers ? maskTraceContext(result.ai_context) : result.ai_context;
+  return [
+    "You are a telecom packet-trace troubleshooting assistant.",
+    "Analyze the decoded TraceLens AI evidence below.",
+    "Use only the supplied frame evidence unless you clearly label external/public knowledge.",
+    "Cite frame numbers. Explain the failure point, likely root cause, confidence, and recommended checks.",
+    "",
+    `Engineer question: ${question || "Explain the trace failure and recommended troubleshooting actions."}`,
+    "",
+    "Decoded trace evidence:",
+    JSON.stringify(
+      {
+        filename: result.filename,
+        event_count: result.event_count,
+        errors: result.errors,
+        ai_context: context,
+      },
+      null,
+      2,
+    ),
+  ].join("\n");
+}
+
+function maskTraceContext(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(maskTraceContext);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, maskIdentifierValue(key, maskTraceContext(child))]),
+    );
+  }
+  if (typeof value === "string") {
+    return maskIdentifierString(value);
+  }
+  return value;
+}
+
+function maskIdentifierValue(key: string, value: unknown): unknown {
+  if (typeof value === "string" && ["imsi", "msisdn", "imei", "supi", "gpsi"].includes(key.toLowerCase())) {
+    return maskDigits(value);
+  }
+  return value;
+}
+
+function maskIdentifierString(value: string) {
+  return value
+    .replace(/\b\d{14,16}\b/g, (match) => maskDigits(match))
+    .replace(/\bimsi-\d{5,16}\b/g, (match) => `imsi-${maskDigits(match.slice(5))}`);
+}
+
+function maskDigits(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length <= 6) return "x".repeat(digits.length);
+  return `${digits.slice(0, 5)}${"x".repeat(digits.length - 7)}${digits.slice(-2)}`;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

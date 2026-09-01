@@ -27,6 +27,7 @@ type TraceResult = {
       protocols?: string[];
       participants?: Array<{ address: string; label: string }>;
       procedures?: Array<Record<string, unknown>>;
+      procedure_groups?: Array<Record<string, unknown>>;
     };
   };
   settings?: {
@@ -73,6 +74,7 @@ export default function Home() {
   const errorFrames = useMemo(() => new Set((result?.errors || []).map((error) => String(error.frame))), [result]);
   const participants = result?.ai_context.trace_summary?.participants || [];
   const procedures = result?.ai_context.trace_summary?.procedures || [];
+  const procedureGroups = result?.ai_context.trace_summary?.procedure_groups || [];
   const primaryError = result?.errors[0] || null;
   const visibleEvents = useMemo(() => {
     const events = result?.events || [];
@@ -243,7 +245,7 @@ export default function Home() {
 
         <section className="troubleshootingBoard">
           <FailureFocus error={primaryError} procedures={procedures} />
-          <ProcedureTimeline procedures={procedures} />
+          <ProcedureOverview groups={procedureGroups} procedures={procedures} />
         </section>
 
         <section className="panel ladderPanel">
@@ -405,6 +407,51 @@ function FailureFocus({
       )}
     </section>
   );
+}
+
+function ProcedureOverview({
+  groups,
+  procedures,
+}: {
+  groups: Array<Record<string, unknown>>;
+  procedures: Array<Record<string, unknown>>;
+}) {
+  const visibleGroups = groups.slice(0, 6);
+
+  if (visibleGroups.length) {
+    return (
+      <section className="insightPanel timelinePanel">
+        <div className="insightHeader">
+          <Clock3 size={18} />
+          <strong>Procedure Overview</strong>
+        </div>
+        <div className="procedureList">
+          {visibleGroups.map((group) => {
+            const failed = group.status === "failed";
+            const protocols = asStringList(group.protocols).join(", ");
+            return (
+              <article className={`procedureStep ${failed ? "failed" : ""}`} key={`${group.name}-${group.start_frame}`}>
+                {failed ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+                <div>
+                  <strong>
+                    {String(group.name || "Procedure")}
+                    <small> {String(group.technology || "Network")}</small>
+                  </strong>
+                  <span>
+                    Frames {String(group.start_frame || "-")} to {String(group.end_frame || "-")}
+                    {group.duration_ms !== undefined && group.duration_ms !== null ? ` | ${String(group.duration_ms)} ms` : ""}
+                    {protocols ? ` | ${protocols}` : ""}
+                  </span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
+  return <ProcedureTimeline procedures={procedures} />;
 }
 
 function ProcedureTimeline({ procedures }: { procedures: Array<Record<string, unknown>> }) {

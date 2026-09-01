@@ -117,6 +117,7 @@ def analyze_events(
     error_frames = {err.get("frame") for err in errors}
     participants = build_participants(events, endpoint_mapping)
     procedures = build_procedures(events, error_frames)
+    procedure_groups = build_procedure_groups(events, procedures, errors)
 
     ai_context = {
         "trace_summary": {
@@ -125,6 +126,7 @@ def analyze_events(
             "protocols": sorted({event.get("protocol") for event in events if event.get("protocol")}),
             "participants": participants,
             "procedures": procedures,
+            "procedure_groups": procedure_groups,
             "endpoint_mapping_count": len(endpoint_mapping),
         },
         "events": events,
@@ -139,6 +141,46 @@ def analyze_events(
     }
 
     return TraceAnalysis(errors=errors, ai_context=ai_context)
+
+
+PROCEDURE_GROUP_RULES = [
+    {
+        "name": "LTE Attach",
+        "technology": "4G",
+        "keywords": ["Attach", "Authentication", "Security Mode", "Initial Context", "Initial UE"],
+        "protocols": ["S1AP", "Diameter"],
+    },
+    {
+        "name": "LTE Session Establishment",
+        "technology": "4G",
+        "keywords": ["Create Session", "Create Bearer", "Modify Bearer", "Create PDP Context"],
+        "protocols": ["GTPv1-C", "GTPv2-C"],
+    },
+    {
+        "name": "LTE Detach",
+        "technology": "4G",
+        "keywords": ["Detach", "Delete Session", "Delete Bearer", "Delete PDP Context"],
+        "protocols": ["S1AP", "GTPv1-C", "GTPv2-C"],
+    },
+    {
+        "name": "5G Registration",
+        "technology": "5G",
+        "keywords": ["Registration", "Authentication", "Security Mode", "Initial UE"],
+        "protocols": ["NGAP", "HTTP/2"],
+    },
+    {
+        "name": "5G PDU Session",
+        "technology": "5G",
+        "keywords": ["PDU Session", "PFCP Session", "Nsmf", "Namf"],
+        "protocols": ["NGAP", "PFCP", "HTTP/2"],
+    },
+    {
+        "name": "IMS Registration",
+        "technology": "IMS",
+        "keywords": ["REGISTER", "SIP", "IMS", "P-CSCF"],
+        "protocols": ["SIP"],
+    },
+]
 
 
 def filter_events(events: list[dict], settings: dict) -> list[dict]:
@@ -167,6 +209,111 @@ def filter_events(events: list[dict], settings: dict) -> list[dict]:
         filtered.append(event)
 
     return filtered
+
+
+def build_procedure_groups(events: list[dict], procedures: list[dict], errors: list[dict]) -> list[dict]:
+    groups = [build_group(rule, events, procedures, errors) for rule in PROCEDURE_GROUP_RULES]
+    groups = [group for group in groups if group["event_count"] or group["procedure_count"]]
+
+    grouped_frames = {frame for group in groups for frame in group["frames"]}
+    ungrouped_control_events = [
+        event
+        for event in events
+        if event.get("frame") not in grouped_frames
+        and event.get("protocol") in {"GTPv1-C", "GTPv2-C", "Diameter", "S1AP", "NGAP", "PFCP", "SIP"}
+    ]
+    if ungrouped_control_events:
+        groups.append(
+            {
+                "name": "Other Control Signaling",
+                "technology": "Network",
+                "status": "failed" if any_error_in_frames(errors, {event.get("frame") for event in ungrouped_control_events}) else "ok",
+                "start_frame": ungrouped_control_events[0].get("frame"),
+                "end_frame": ungrouped_control_events[-1].get("frame"),
+                "duration_ms": duration_between(ungrouped_control_events[0].get("time"), ungrouped_control_events[-1].get("time")),
+                "event_count": len(ungrouped_control_events),
+                "procedure_count": 0,
+                "frames": [event.get("frame") for event in ungrouped_control_events],
+                "protocols": sorted({event.get("protocol") for event in ungrouped_control_events if event.get("protocol")}),
+                "summary": "Control-plane signaling not matched to a known telecom procedure yet.",
+            }
+        )
+
+    return sorted(groups, key=lambda group: group.get("start_frame") or 0)
+
+
+def build_group(rule: dict, events: list[dict], procedures: list[dict], errors: list[dict]) -> dict:
+    matched_events = [event for event in events if matches_rule(event, rule)]
+    matched_procedures = [procedure for procedure in procedures if matches_rule(procedure, rule)]
+    frames = sorted(
+        {
+            value
+            for item in matched_events
+            for value in [item.get("frame")]
+            if value is not None
+        }
+        | {
+            value
+            for procedure in matched_procedures
+            for value in [procedure.get("request_frame"), procedure.get("response_frame")]
+            if value is not None
+        }
+    )
+    start_frame = frames[0] if frames else None
+    end_frame = frames[-1] if frames else None
+    first_event = first_event_for_frame(events, start_frame)
+    last_event = first_event_for_frame(events, end_frame)
+    failed = any(procedure.get("status") == "failed" for procedure in matched_procedures) or any_error_in_frames(
+        errors, set(frames)
+    )
+
+    return {
+        "name": rule["name"],
+        "technology": rule["technology"],
+        "status": "failed" if failed else "ok",
+        "start_frame": start_frame,
+        "end_frame": end_frame,
+        "duration_ms": duration_between(first_event.get("time") if first_event else None, last_event.get("time") if last_event else None),
+        "event_count": len(matched_events),
+        "procedure_count": len(matched_procedures),
+        "frames": frames,
+        "protocols": sorted({event.get("protocol") for event in matched_events if event.get("protocol")}),
+        "summary": group_summary(rule["name"], failed, matched_procedures, matched_events),
+    }
+
+
+def matches_rule(item: dict, rule: dict) -> bool:
+    protocols = rule.get("protocols", [])
+    item_protocol = str(item.get("protocol") or "")
+    item_protocols = str(item.get("protocols") or "")
+    if protocols and item_protocol not in protocols and not any(protocol.lower() in item_protocols.lower() for protocol in protocols):
+        return False
+
+    text = " ".join(
+        str(item.get(key) or "") for key in ("message", "procedure", "protocol", "protocols", "summary")
+    ).lower()
+    return any(keyword.lower() in text for keyword in rule["keywords"])
+
+
+def any_error_in_frames(errors: list[dict], frames: set) -> bool:
+    return any(error.get("frame") in frames for error in errors)
+
+
+def first_event_for_frame(events: list[dict], frame: object) -> dict | None:
+    for event in events:
+        if event.get("frame") == frame:
+            return event
+    return None
+
+
+def group_summary(name: str, failed: bool, procedures: list[dict], events: list[dict]) -> str:
+    if procedures:
+        status = "failed" if failed else "completed"
+        return f"{name} {status} across {len(procedures)} request/response procedure."
+    if events:
+        status = "has a detected failure" if failed else "has decoded signaling events"
+        return f"{name} {status}, but no complete request/response pair was matched yet."
+    return f"{name} was not observed in this trace."
 
 
 def build_participants(events: list[dict], endpoint_mapping: dict[str, dict[str, str]]) -> list[dict]:

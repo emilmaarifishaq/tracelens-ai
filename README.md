@@ -103,3 +103,7 @@ AI_MODEL=gpt-5
 AI_BASE_URL=https://api.openai.com/v1/responses
 AI_WEB_SEARCH_ENABLED=true
 ```
+
+## Sample Capture Testing
+
+TraceLens uses generated telecom samples for controlled failure tests and will use selected public captures for protocol regression coverage. See [docs/sample-capture-strategy.md](docs/sample-capture-strategy.md).

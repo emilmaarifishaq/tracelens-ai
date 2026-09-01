@@ -124,7 +124,7 @@ h1 {
 }
 
 .primary:focus-visible,
-.ladderEvent:focus-visible,
+.sequenceMessage:focus-visible,
 .row:focus-visible {
   outline: 3px solid rgba(15, 118, 110, 0.28);
   outline-offset: 2px;
@@ -189,7 +189,7 @@ h1 {
 
 .settingsPanel input:not([type="checkbox"]),
 .settingsPanel input[type="file"],
-.aiControls input,
+.aiControls input:not([type="checkbox"]),
 .filters select {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -211,6 +211,92 @@ h1 {
   gap: 16px;
   grid-template-columns: 180px 180px 160px 1fr;
   margin-bottom: 16px;
+}
+
+.troubleshootingBoard {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(360px, 1.05fr);
+  margin-bottom: 16px;
+}
+
+.insightPanel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 178px;
+  padding: 18px;
+}
+
+.insightPanel.hasFailure {
+  border-color: #efd0cd;
+  box-shadow: inset 4px 0 0 var(--warning);
+}
+
+.insightHeader {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.insightPanel h2 {
+  font-size: 21px;
+  letter-spacing: 0;
+  margin-bottom: 8px;
+}
+
+.insightPanel p {
+  color: #39424e;
+  line-height: 1.45;
+}
+
+.failureFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.failureFacts span {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: #354052;
+  font-size: 12px;
+  padding: 6px 9px;
+}
+
+.procedureList {
+  display: grid;
+  gap: 10px;
+}
+
+.procedureStep {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+}
+
+.procedureStep.failed {
+  background: #fff5f3;
+  border-color: #efd0cd;
+  color: #7a271a;
+}
+
+.procedureStep strong,
+.procedureStep span {
+  display: block;
+}
+
+.procedureStep span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 3px;
 }
 
 .metric,
@@ -317,95 +403,155 @@ h1 {
   gap: 12px;
 }
 
-.ladder {
-  display: grid;
-  max-height: 520px;
+.sequenceDiagram {
+  max-height: 620px;
   overflow: auto;
-  padding: 14px 16px 18px;
+  padding: 0 16px 18px;
 }
 
-.ladderEvent {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  color: inherit;
-  cursor: pointer;
+.sequenceHeader {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(150px, 0.8fr) minmax(90px, 0.35fr) minmax(150px, 0.8fr) minmax(260px, 1.2fr);
-  min-height: 72px;
-  padding: 8px 0;
-  text-align: left;
-  width: 100%;
+  min-width: 760px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
-.ladderEvent + .ladderEvent {
-  border-top: 1px solid var(--line);
+.sequenceParticipant {
+  border-left: 1px solid var(--line);
+  min-height: 76px;
+  padding: 14px 10px;
+  text-align: center;
 }
 
-.endpoint strong,
-.endpoint span,
-.message strong,
-.message span {
+.sequenceParticipant:last-child {
+  border-right: 1px solid var(--line);
+}
+
+.sequenceParticipant strong,
+.sequenceParticipant span {
   display: block;
   overflow-wrap: anywhere;
 }
 
-.endpoint strong {
+.sequenceParticipant strong {
   font-size: 14px;
 }
 
-.endpoint span,
-.message span {
+.sequenceParticipant span {
   color: var(--muted);
-  font-size: 13px;
-  margin-top: 3px;
+  font-size: 12px;
+  margin-top: 4px;
 }
 
-.endpoint.right {
-  text-align: right;
+.sequenceRow {
+  display: grid;
+  min-height: 74px;
+  min-width: 760px;
+  position: relative;
 }
 
-.arrow {
-  align-items: center;
-  display: flex;
-  justify-content: center;
+.lifeLine {
+  border-left: 1px solid #e5eaf0;
+  grid-row: 1;
+  min-height: 74px;
 }
 
-.arrow .line {
+.lifeLine:last-of-type {
+  border-right: 1px solid #e5eaf0;
+}
+
+.sequenceMessage {
+  align-self: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  grid-row: 1;
+  min-height: 54px;
+  padding: 0 18px;
+  position: relative;
+  text-align: center;
+  z-index: 2;
+}
+
+.messageLine {
+  align-self: center;
   background: #7a8795;
   height: 2px;
+  position: relative;
   width: 100%;
 }
 
-.arrow .head {
+.messageLine::after {
   border-bottom: 5px solid transparent;
   border-left: 8px solid #7a8795;
   border-top: 5px solid transparent;
-  height: 0;
-  width: 0;
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -4px;
 }
 
-.ladderEvent.failed .arrow .line {
+.sequenceMessage.reverse .messageLine::after {
+  border-left: 0;
+  border-right: 8px solid #7a8795;
+  left: -1px;
+  right: auto;
+}
+
+.messageCard {
+  align-self: center;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  justify-self: center;
+  max-width: min(420px, 90%);
+  padding: 8px 10px;
+  position: absolute;
+}
+
+.messageCard strong,
+.messageCard span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.messageCard strong {
+  font-size: 13px;
+}
+
+.messageCard span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.sequenceMessage.failed .messageLine {
   background: var(--warning);
 }
 
-.ladderEvent.failed .arrow .head {
+.sequenceMessage.failed .messageLine::after {
   border-left-color: var(--warning);
 }
 
-.ladderEvent.failed .message {
-  background: #fff5f3;
-  border: 1px solid #efd0cd;
-  border-radius: 6px;
-  padding: 10px;
+.sequenceMessage.reverse.failed .messageLine::after {
+  border-right-color: var(--warning);
 }
 
-.ladderEvent.selected {
-  background: #f0fdfa;
-  box-shadow: inset 3px 0 0 var(--accent);
-  padding-left: 8px;
+.sequenceMessage.failed .messageCard {
+  background: #fff5f3;
+  border-color: #efd0cd;
+  color: #7a271a;
+  font-weight: 700;
+}
+
+.sequenceMessage.selected .messageCard {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
 }
 
 .ladderEmpty {
@@ -556,9 +702,9 @@ h1 {
   .contentGrid,
   .contentGrid.threeColumn,
   .metrics,
+  .troubleshootingBoard,
   .settingsPanel,
-  .aiControls,
-  .ladderEvent {
+  .aiControls {
     grid-template-columns: 1fr;
   }
 
@@ -571,7 +717,8 @@ h1 {
     flex-direction: column;
   }
 
-  .endpoint.right {
-    text-align: left;
+  .sequenceDiagram {
+    padding-left: 10px;
+    padding-right: 10px;
   }
 }

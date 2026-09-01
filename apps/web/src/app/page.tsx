@@ -1,6 +1,17 @@
 "use client";
 
-import { Activity, AlertTriangle, Brain, FileUp, Network, Search, Settings2, Shield } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Brain,
+  CheckCircle2,
+  Clock3,
+  FileUp,
+  Network,
+  Search,
+  Settings2,
+  Shield,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 type TraceResult = {
@@ -62,6 +73,7 @@ export default function Home() {
   const errorFrames = useMemo(() => new Set((result?.errors || []).map((error) => String(error.frame))), [result]);
   const participants = result?.ai_context.trace_summary?.participants || [];
   const procedures = result?.ai_context.trace_summary?.procedures || [];
+  const primaryError = result?.errors[0] || null;
   const visibleEvents = useMemo(() => {
     const events = result?.events || [];
     return events.filter((event) => {
@@ -229,6 +241,11 @@ export default function Home() {
           <Metric label="Protocols" value={protocols} />
         </section>
 
+        <section className="troubleshootingBoard">
+          <FailureFocus error={primaryError} procedures={procedures} />
+          <ProcedureTimeline procedures={procedures} />
+        </section>
+
         <section className="panel ladderPanel">
           <div className="panelTitle">
             <h2>Flow Ladder</h2>
@@ -349,6 +366,81 @@ export default function Home() {
   );
 }
 
+function FailureFocus({
+  error,
+  procedures,
+}: {
+  error: Record<string, unknown> | null;
+  procedures: Array<Record<string, unknown>>;
+}) {
+  const failedProcedure = procedures.find((procedure) => procedure.status === "failed");
+
+  return (
+    <section className={`insightPanel ${error ? "hasFailure" : ""}`}>
+      <div className="insightHeader">
+        <AlertTriangle size={18} />
+        <strong>Failure Focus</strong>
+      </div>
+      {error ? (
+        <>
+          <h2>{String(error.error || "Protocol failure")}</h2>
+          <p>{String(error.root_cause || error.evidence || "A peer returned a supported failure code.")}</p>
+          <div className="failureFacts">
+            <span>Frame {String(error.frame || "-")}</span>
+            <span>{String(error.protocol || "-")}</span>
+            <span>Code {String(error.code || "-")}</span>
+            {failedProcedure ? <span>{String(failedProcedure.procedure || "Procedure")} failed</span> : null}
+          </div>
+        </>
+      ) : (
+        <>
+          <h2>No supported failure detected</h2>
+          <p>TraceLens decoded the trace, but no current rule matched a known protocol error.</p>
+          <div className="failureFacts">
+            <span>Review timing</span>
+            <span>Check missing responses</span>
+            <span>Ask AI with evidence</span>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ProcedureTimeline({ procedures }: { procedures: Array<Record<string, unknown>> }) {
+  const visibleProcedures = procedures.slice(0, 6);
+
+  return (
+    <section className="insightPanel timelinePanel">
+      <div className="insightHeader">
+        <Clock3 size={18} />
+        <strong>Procedure Timing</strong>
+      </div>
+      {visibleProcedures.length ? (
+        <div className="procedureList">
+          {visibleProcedures.map((procedure) => {
+            const failed = procedure.status === "failed";
+            return (
+              <article className={`procedureStep ${failed ? "failed" : ""}`} key={`${procedure.request_frame}-${procedure.response_frame}`}>
+                {failed ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+                <div>
+                  <strong>{String(procedure.procedure || "Procedure")}</strong>
+                  <span>
+                    Frame {String(procedure.request_frame)} to {String(procedure.response_frame)}
+                    {procedure.duration_ms !== undefined ? ` | ${String(procedure.duration_ms)} ms` : ""}
+                  </span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="empty">No request/response procedure pairs found yet.</p>
+      )}
+    </section>
+  );
+}
+
 function AiAnalysisView({ analysis }: { analysis: AiAnalysis }) {
   return (
     <div className="aiResult">
@@ -410,43 +502,56 @@ function Ladder({
     return <p className="empty ladderEmpty">No flow events yet.</p>;
   }
 
-  const labels = new Map(participants.map((participant) => [participant.address, participant.label]));
+  const lanes = participants.length
+    ? participants.slice(0, 8)
+    : Array.from(
+        new Set(events.flatMap((event) => [String(event.src || "-"), String(event.dst || "-")])),
+      ).slice(0, 8).map((address) => ({ address, label: address }));
+  const laneIndexes = new Map(lanes.map((participant, index) => [participant.address, index]));
+  const gridTemplateColumns = `repeat(${Math.max(lanes.length, 1)}, minmax(160px, 1fr))`;
 
   return (
-    <div className="ladder">
+    <div className="sequenceDiagram">
+      <div className="sequenceHeader" style={{ gridTemplateColumns }}>
+        {lanes.map((participant) => (
+          <div className="sequenceParticipant" key={participant.address}>
+            <strong>{participant.label}</strong>
+            <span>{participant.address}</span>
+          </div>
+        ))}
+      </div>
       {events.slice(0, 80).map((event) => {
         const failed = errorFrames.has(String(event.frame));
+        const srcIndex = laneIndexes.get(String(event.src || "-")) ?? 0;
+        const dstIndex = laneIndexes.get(String(event.dst || "-")) ?? srcIndex;
+        const left = Math.min(srcIndex, dstIndex);
+        const right = Math.max(srcIndex, dstIndex);
+        const reverse = srcIndex > dstIndex;
         return (
-          <button
-            className={`ladderEvent ${failed ? "failed" : ""} ${
-              selectedFrame === String(event.frame) ? "selected" : ""
-            }`}
-            key={String(event.frame)}
-            onClick={() => onSelectFrame(String(event.frame))}
-          >
-            <div className="endpoint left">
-              <strong>{labels.get(String(event.src)) || String(event.src || "-")}</strong>
-              <span>{String(event.src || "-")}</span>
-            </div>
-            <div className="arrow">
-              <span className="line" />
-              <span className="head" />
-            </div>
-            <div className="endpoint right">
-              <strong>{labels.get(String(event.dst)) || String(event.dst || "-")}</strong>
-              <span>{String(event.dst || "-")}</span>
-            </div>
-            <div className="message">
-              <strong>
-                Frame {String(event.frame)} | {String(event.protocol || "-")}
-              </strong>
-              <span>
-                {String(event.message || event.protocols || "-")}
-                {event.cause_code ? ` | Cause ${String(event.cause_code)}` : ""}
-                {event.sequence_number ? ` | Seq ${String(event.sequence_number)}` : ""}
+          <div className="sequenceRow" style={{ gridTemplateColumns }} key={String(event.frame)}>
+            {lanes.map((participant) => (
+              <span className="lifeLine" key={participant.address} />
+            ))}
+            <button
+              className={`sequenceMessage ${failed ? "failed" : ""} ${
+                selectedFrame === String(event.frame) ? "selected" : ""
+              } ${reverse ? "reverse" : ""}`}
+              style={{ gridColumn: `${left + 1} / ${right + 2}` }}
+              onClick={() => onSelectFrame(String(event.frame))}
+            >
+              <span className="messageLine" />
+              <span className="messageCard">
+                <strong>
+                  {String(event.message || event.protocols || "-")}
+                  {event.cause_code ? ` | Cause ${String(event.cause_code)}` : ""}
+                </strong>
+                <span>
+                  Frame {String(event.frame)} | {String(event.protocol || "-")}
+                  {event.sequence_number ? ` | Seq ${String(event.sequence_number)}` : ""}
+                </span>
               </span>
-            </div>
-          </button>
+            </button>
+          </div>
         );
       })}
     </div>

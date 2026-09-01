@@ -258,8 +258,8 @@ export default function Home() {
 
         <section className="metrics">
           <Metric label="Frames decoded" value={String(result?.event_count || 0)} />
-          <Metric label="Errors found" value={String(result?.errors.length || 0)} />
-          <Metric label="Procedures" value={String(procedures.length)} />
+          <Metric label="Issues found" value={String(result?.errors.length || 0)} />
+          <Metric label="Flow groups" value={String(procedureGroups.length || procedures.length)} />
           <Metric label="Protocols" value={protocols} />
         </section>
 
@@ -354,7 +354,7 @@ export default function Home() {
         <section className="contentGrid threeColumn">
           <div className="panel">
             <div className="panelTitle">
-              <h2>Detected Errors</h2>
+              <h2>Detected Issues</h2>
               <span>{result?.filename || "No trace loaded"}</span>
             </div>
             <div className="list">
@@ -375,7 +375,7 @@ export default function Home() {
                   )}
                 </article>
               ))}
-              {!result?.errors.length && <p className="empty">No decoded errors yet.</p>}
+              {!result?.errors.length && <p className="empty">No decoded issues yet.</p>}
             </div>
           </div>
 

@@ -62,6 +62,7 @@ def normalize_packet(packet: dict) -> dict:
     layers = source.get("layers", {})
     frame = layers.get("frame", {})
     ip = layers.get("ip", {})
+    ipv6 = layers.get("ipv6", {})
     tcp = layers.get("tcp", {})
     udp = layers.get("udp", {})
 
@@ -70,8 +71,8 @@ def normalize_packet(packet: dict) -> dict:
         "frame": int(frame.get("frame.number", 0)),
         "time": normalize_time(frame.get("frame.time_epoch")),
         "protocols": protocols,
-        "src": ip.get("ip.src"),
-        "dst": ip.get("ip.dst"),
+        "src": ip.get("ip.src") or ipv6.get("ipv6.src"),
+        "dst": ip.get("ip.dst") or ipv6.get("ipv6.dst"),
         "src_port": tcp.get("tcp.srcport") or udp.get("udp.srcport"),
         "dst_port": tcp.get("tcp.dstport") or udp.get("udp.dstport"),
         "summary": frame.get("frame.protocols", ""),
@@ -89,6 +90,39 @@ def normalize_packet(packet: dict) -> dict:
 
     if "pfcp" in layers:
         event.update(normalize_pfcp(layers["pfcp"]))
+
+    if "dns" in layers and "protocol" not in event:
+        event.update(normalize_dns(layers["dns"]))
+
+    if "http" in layers and "protocol" not in event:
+        event.update(normalize_http(layers["http"]))
+
+    if "tls" in layers and "protocol" not in event:
+        event.update(normalize_tls(layers["tls"]))
+
+    if "mqtt" in layers and "protocol" not in event:
+        event.update(normalize_mqtt(layers["mqtt"]))
+
+    if "quic" in layers and "protocol" not in event:
+        event.update(normalize_quic(layers["quic"]))
+
+    if "ssh" in layers and "protocol" not in event:
+        event.update({"protocol": "SSH", "message": "SSH traffic"})
+
+    if "icmp" in layers and "protocol" not in event:
+        event.update(normalize_icmp(layers["icmp"]))
+
+    if "icmpv6" in layers and "protocol" not in event:
+        event.update({"protocol": "ICMPv6", "message": "ICMPv6 message"})
+
+    if "arp" in layers and "protocol" not in event:
+        event.update(normalize_arp(layers["arp"]))
+
+    if "tcp" in layers and "protocol" not in event:
+        event.update(normalize_tcp(tcp))
+
+    if "udp" in layers and "protocol" not in event:
+        event.update({"protocol": "UDP", "message": f"UDP {event.get('src_port')} -> {event.get('dst_port')}"})
 
     tcp_analysis = tcp.get("tcp.analysis", {})
     if "tcp.analysis.retransmission" in tcp_analysis or "tcp.analysis.fast_retransmission" in tcp_analysis:
@@ -149,6 +183,140 @@ def normalize_pfcp(pfcp: dict) -> dict:
     }
 
 
+def normalize_dns(dns: dict) -> dict:
+    is_response = recursive_get(dns, "dns.flags.response") == "1"
+    query_name = recursive_get(dns, "dns.qry.name")
+    query_type = dns_type_name(recursive_get(dns, "dns.qry.type"))
+    response_code = recursive_get(dns, "dns.flags.rcode")
+    answer = recursive_get(dns, "dns.a") or recursive_get(dns, "dns.aaaa") or recursive_get(dns, "dns.cname")
+    message = "DNS Response" if is_response else "DNS Query"
+    if query_name:
+        message = f"{message} {query_name}"
+    if query_type:
+        message = f"{message} {query_type}"
+    if answer:
+        message = f"{message} -> {answer}"
+    if is_response and response_code not in {None, "0"}:
+        message = f"{message} ({dns_rcode_name(response_code)})"
+
+    return {
+        "protocol": "DNS",
+        "message": message,
+        "dns_query": query_name,
+        "dns_query_type": query_type,
+        "dns_response_code": response_code,
+        "dns_response": answer,
+        "response_to": parse_int(recursive_get(dns, "dns.response_to")),
+        "response_time_ms": seconds_to_ms(recursive_get(dns, "dns.time")),
+    }
+
+
+def normalize_http(http: dict) -> dict:
+    method = recursive_get(http, "http.request.method")
+    host = recursive_get(http, "http.host")
+    uri = recursive_get(http, "http.request.uri")
+    status_code = recursive_get(http, "http.response.code")
+    if method:
+        target = f"{host or ''}{uri or ''}".strip() or "request"
+        message = f"HTTP {method} {target}"
+    elif status_code:
+        message = f"HTTP Response {status_code}"
+    else:
+        message = "HTTP traffic"
+
+    return {
+        "protocol": "HTTP",
+        "message": message,
+        "http_method": method,
+        "http_host": host,
+        "http_uri": uri,
+        "http_status_code": status_code,
+    }
+
+
+def normalize_tls(tls: dict) -> dict:
+    alert = recursive_get(tls, "tls.alert_message.desc") or recursive_get(tls, "tls.alert_message")
+    handshake_type = recursive_get(tls, "tls.handshake.type")
+    if alert:
+        message = f"TLS Alert {alert}"
+    elif handshake_type:
+        message = f"TLS {tls_handshake_name(handshake_type)}"
+    else:
+        message = "TLS encrypted traffic"
+
+    return {
+        "protocol": "TLS",
+        "message": message,
+        "tls_handshake_type": handshake_type,
+        "tls_alert": alert,
+    }
+
+
+def normalize_mqtt(mqtt: dict) -> dict:
+    message_type = recursive_get(mqtt, "mqtt.msgtype") or recursive_get(mqtt, "mqtt.hdrflags")
+    topic = recursive_get(mqtt, "mqtt.topic")
+    message = f"MQTT {mqtt_message_name(message_type)}"
+    if topic:
+        message = f"{message} {topic}"
+    return {
+        "protocol": "MQTT",
+        "message": message,
+        "mqtt_message_type": message_type,
+        "mqtt_topic": topic,
+    }
+
+
+def normalize_quic(quic: dict) -> dict:
+    packet_type = recursive_get(quic, "quic.long.packet_type") or recursive_get(quic, "quic.packet_type")
+    version = recursive_get(quic, "quic.version")
+    message = "QUIC traffic"
+    if packet_type:
+        message = f"QUIC {packet_type}"
+    return {
+        "protocol": "QUIC",
+        "message": message,
+        "quic_packet_type": packet_type,
+        "quic_version": version,
+    }
+
+
+def normalize_icmp(icmp: dict) -> dict:
+    icmp_type = recursive_get(icmp, "icmp.type")
+    icmp_code = recursive_get(icmp, "icmp.code")
+    return {
+        "protocol": "ICMP",
+        "message": icmp_message_name(icmp_type, icmp_code),
+        "icmp_type": icmp_type,
+        "icmp_code": icmp_code,
+    }
+
+
+def normalize_arp(arp: dict) -> dict:
+    opcode = recursive_get(arp, "arp.opcode")
+    src = recursive_get(arp, "arp.src.proto_ipv4")
+    dst = recursive_get(arp, "arp.dst.proto_ipv4")
+    return {
+        "protocol": "ARP",
+        "message": f"ARP {arp_opcode_name(opcode)} {src or ''} -> {dst or ''}".strip(),
+        "arp_opcode": opcode,
+    }
+
+
+def normalize_tcp(tcp: dict) -> dict:
+    flags = tcp_flags(tcp)
+    stream = recursive_get(tcp, "tcp.stream")
+    message = f"TCP {flags}" if flags else "TCP segment"
+    if stream is not None:
+        message = f"{message} stream {stream}"
+    return {
+        "protocol": "TCP",
+        "message": message,
+        "tcp_flags": flags,
+        "tcp_stream": stream,
+        "tcp_reset": recursive_get(tcp, "tcp.flags.reset") == "1",
+    }
+
+
 def recursive_get(value: object, key: str) -> object | None:
     if isinstance(value, dict):
         if key in value:
@@ -197,6 +365,107 @@ def seconds_to_ms(value: object) -> float | None:
         return round(float(str(value)) * 1000, 3)
     except ValueError:
         return None
+
+
+def dns_type_name(value: object) -> str | None:
+    query_type = parse_int(value)
+    names = {
+        1: "A",
+        2: "NS",
+        5: "CNAME",
+        6: "SOA",
+        15: "MX",
+        16: "TXT",
+        28: "AAAA",
+        33: "SRV",
+        35: "NAPTR",
+        65: "HTTPS",
+    }
+    return names.get(query_type, str(value) if value is not None else None)
+
+
+def dns_rcode_name(value: object) -> str:
+    code = parse_int(value)
+    names = {
+        0: "NoError",
+        1: "FormErr",
+        2: "ServFail",
+        3: "NXDomain",
+        4: "NotImp",
+        5: "Refused",
+    }
+    return names.get(code, f"rcode {value}")
+
+
+def tls_handshake_name(value: object) -> str:
+    handshake_type = parse_int(value)
+    names = {
+        1: "Client Hello",
+        2: "Server Hello",
+        4: "New Session Ticket",
+        8: "Encrypted Extensions",
+        11: "Certificate",
+        13: "Certificate Request",
+        14: "Server Hello Done",
+        15: "Certificate Verify",
+        16: "Client Key Exchange",
+        20: "Finished",
+    }
+    return names.get(handshake_type, f"Handshake {value}")
+
+
+def mqtt_message_name(value: object) -> str:
+    message_type = parse_int(value)
+    names = {
+        1: "CONNECT",
+        2: "CONNACK",
+        3: "PUBLISH",
+        4: "PUBACK",
+        8: "SUBSCRIBE",
+        9: "SUBACK",
+        12: "PINGREQ",
+        13: "PINGRESP",
+        14: "DISCONNECT",
+    }
+    return names.get(message_type, f"message {value}" if value is not None else "traffic")
+
+
+def icmp_message_name(icmp_type: object, icmp_code: object) -> str:
+    message_type = parse_int(icmp_type)
+    names = {
+        0: "ICMP Echo Reply",
+        3: "ICMP Destination Unreachable",
+        5: "ICMP Redirect",
+        8: "ICMP Echo Request",
+        11: "ICMP Time Exceeded",
+    }
+    message = names.get(message_type, f"ICMP type {icmp_type}")
+    if icmp_code not in {None, "0", 0}:
+        message = f"{message} code {icmp_code}"
+    return message
+
+
+def arp_opcode_name(value: object) -> str:
+    opcode = parse_int(value)
+    names = {
+        1: "Request",
+        2: "Reply",
+    }
+    return names.get(opcode, f"opcode {value}")
+
+
+def tcp_flags(tcp: dict) -> str:
+    names = []
+    for key, label in [
+        ("tcp.flags.syn", "SYN"),
+        ("tcp.flags.ack", "ACK"),
+        ("tcp.flags.fin", "FIN"),
+        ("tcp.flags.reset", "RST"),
+        ("tcp.flags.push", "PSH"),
+    ]:
+        if recursive_get(tcp, key) == "1":
+            names.append(label)
+    return "+".join(names)
 
 
 def gtp_message_name(value: object) -> str | None:

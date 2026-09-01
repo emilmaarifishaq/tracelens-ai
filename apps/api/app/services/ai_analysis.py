@@ -84,8 +84,8 @@ def build_rule_based_explanation(ai_context: dict, question: str = "") -> dict:
 
         return {
             "summary": (
-                f"TraceLens detected {len(errors)} explicit protocol failure. "
-                f"The first failure is {first_error.get('error')} at frame {first_error.get('frame')}."
+                f"TraceLens detected {len(errors)} explicit protocol {pluralize('issue', len(errors))}. "
+                f"The first issue is {first_error.get('error')} at frame {first_error.get('frame')}."
                 f"{procedure_text}"
             ),
             "root_cause": first_error.get("root_cause") or "A protocol peer returned an explicit failure code.",
@@ -213,6 +213,10 @@ def mask_context(value: Any) -> Any:
     if isinstance(value, str):
         return mask_string(value)
     return value
+
+
+def pluralize(word: str, count: int) -> str:
+    return word if count == 1 else f"{word}s"
 
 
 def mask_identifier(key: str, value: Any) -> Any:

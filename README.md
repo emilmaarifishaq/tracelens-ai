@@ -26,6 +26,9 @@ Initial focus:
 - Diameter
 - SCTP
 - DNS
+- TCP/UDP basics
+- HTTP/TLS
+- MQTT/QUIC/SSH traffic labeling
 - SIP/RTP basics
 
 Expansion path:
@@ -37,6 +40,8 @@ Expansion path:
 - HTTP/2 SBI
 - RADIUS
 - Any future protocol with a decoder and normalizer
+
+CPE and internet-access traces are supported at a starter level with readable DNS, TCP, TLS, HTTP, MQTT, QUIC, SSH, ICMP, and ARP event labels plus basic DNS/TCP/TLS issue detection.
 
 ## Architecture
 

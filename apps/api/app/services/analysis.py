@@ -70,6 +70,14 @@ GTPV2_FAILURE_CAUSES = {
     },
 }
 
+DNS_ERROR_CODES = {
+    "1": "DNS FormErr",
+    "2": "DNS ServFail",
+    "3": "DNS NXDomain",
+    "4": "DNS NotImp",
+    "5": "DNS Refused",
+}
+
 
 def analyze_events(
     events: list[dict],
@@ -114,6 +122,80 @@ def analyze_events(
                 }
             )
 
+        dns_code = str(event.get("dns_response_code") or "")
+        if event.get("protocol") == "DNS" and dns_code not in {"", "0", "None"}:
+            errors.append(
+                {
+                    "frame": event.get("frame"),
+                    "severity": "warning",
+                    "protocol": "DNS",
+                    "code": dns_code,
+                    "error": DNS_ERROR_CODES.get(dns_code, f"DNS error {dns_code}"),
+                    "root_cause": "The resolver returned a DNS failure for the requested name.",
+                    "recommended_checks": [
+                        "Check whether the CPE can reach the configured DNS resolver.",
+                        "Verify the requested domain and DNS zone records.",
+                        "Compare DNS response timing with surrounding TCP or application failures.",
+                    ],
+                    "evidence": (
+                        f"DNS response for {event.get('dns_query') or 'query'} returned "
+                        f"{DNS_ERROR_CODES.get(dns_code, dns_code)} at frame {event.get('frame')}"
+                    ),
+                }
+            )
+
+        if event.get("tcp_reset"):
+            errors.append(
+                {
+                    "frame": event.get("frame"),
+                    "severity": "warning",
+                    "protocol": "TCP",
+                    "code": "RST",
+                    "error": "TCP Reset",
+                    "root_cause": "One endpoint reset the TCP connection.",
+                    "recommended_checks": [
+                        "Check whether the reset comes from the CPE, server, firewall, or proxy.",
+                        "Inspect the previous frames in the same TCP stream for TLS, HTTP, or application errors.",
+                        "Validate routing, firewall policy, and service availability for the destination.",
+                    ],
+                    "evidence": f"TCP RST observed at frame {event.get('frame')}",
+                }
+            )
+
+        if event.get("tls_alert"):
+            errors.append(
+                {
+                    "frame": event.get("frame"),
+                    "severity": "warning",
+                    "protocol": "TLS",
+                    "code": str(event.get("tls_alert")),
+                    "error": "TLS Alert",
+                    "root_cause": "A TLS peer reported an encrypted-session alert.",
+                    "recommended_checks": [
+                        "Check certificate validity, SNI, TLS version, and cipher compatibility.",
+                        "Compare the alert with the preceding Client Hello and Server Hello.",
+                    ],
+                    "evidence": f"TLS alert {event.get('tls_alert')} observed at frame {event.get('frame')}",
+                }
+            )
+
+        if event.get("is_retransmission"):
+            errors.append(
+                {
+                    "frame": event.get("frame"),
+                    "severity": "info",
+                    "protocol": "TCP",
+                    "code": "retransmission",
+                    "error": "TCP Retransmission",
+                    "root_cause": "A TCP segment was retransmitted, usually because an ACK was delayed or lost.",
+                    "recommended_checks": [
+                        "Check packet loss, latency, and asymmetric routing on the path.",
+                        "Look for repeated retransmissions in the same TCP stream before declaring a fault.",
+                    ],
+                    "evidence": f"TCP retransmission detected at frame {event.get('frame')}",
+                }
+            )
+
     error_frames = {err.get("frame") for err in errors}
     participants = build_participants(events, endpoint_mapping)
     procedures = build_procedures(events, error_frames)
@@ -134,7 +216,8 @@ def analyze_events(
         "important_events": [
             event
             for event in events
-            if event.get("protocol") in {"GTPv1-C", "GTPv2-C", "GTP-U", "Diameter"}
+            if event.get("protocol")
+            in {"GTPv1-C", "GTPv2-C", "GTP-U", "Diameter", "DNS", "HTTP", "TLS", "MQTT", "QUIC", "TCP"}
             or event.get("frame") in error_frames
         ][:100],
         "instruction": "Explain only what is supported by the provided frame evidence. Cite frame numbers.",
@@ -179,6 +262,18 @@ PROCEDURE_GROUP_RULES = [
         "technology": "IMS",
         "keywords": ["REGISTER", "SIP", "IMS", "P-CSCF"],
         "protocols": ["SIP"],
+    },
+    {
+        "name": "CPE Name Resolution",
+        "technology": "CPE",
+        "keywords": ["DNS Query", "DNS Response", "NXDomain", "ServFail", "Refused"],
+        "protocols": ["DNS"],
+    },
+    {
+        "name": "CPE Internet Session",
+        "technology": "CPE",
+        "keywords": ["TCP", "TLS", "HTTP", "QUIC", "MQTT", "SSH"],
+        "protocols": ["TCP", "TLS", "HTTP", "QUIC", "MQTT", "SSH"],
     },
 ]
 

@@ -12,6 +12,7 @@ def main() -> None:
     check_cpe_dns_failure()
     check_local_failure_rules()
     check_host_extraction()
+    check_http_payload_redirect_extraction()
     print("PASS sample smoke tests")
 
 
@@ -153,6 +154,34 @@ def check_host_extraction() -> None:
     assert tls_event["host"] == "acs.example.net", "missing TLS SNI host"
     assert sip_event["host"] == "ims.example.org", "missing SIP host"
     print("PASS host extraction coverage")
+
+
+def check_http_payload_redirect_extraction() -> None:
+    payload = (
+        b"HTTP/1.1 302 Found\r\n"
+        b"Server: CaptivePortal\r\n"
+        b"Connection: close\r\n"
+        b"Location: https://fwa-captive.starliteindonesia.com?bc=nokia\r\n"
+        b"\r\n"
+    )
+    event = normalize_packet(
+        packet(
+            14,
+            {
+                "tcp": {
+                    "tcp.srcport": "80",
+                    "tcp.dstport": "51001",
+                    "tcp.payload": payload.hex(":"),
+                },
+            },
+        )
+    )
+
+    assert event["protocol"] == "HTTP", "missing HTTP fallback protocol"
+    assert event["http_status_code"] == "302", "missing HTTP status from TCP payload"
+    assert event["host"] == "fwa-captive.starliteindonesia.com", "missing redirect host"
+    assert event["redirect_url"] == "https://fwa-captive.starliteindonesia.com?bc=nokia", "missing redirect URL"
+    print("PASS HTTP payload redirect extraction")
 
 
 def packet(frame: int, layers: dict) -> dict:

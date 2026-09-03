@@ -64,6 +64,7 @@ export default function Home() {
   const [protocolFilter, setProtocolFilter] = useState("all");
   const [errorsOnly, setErrorsOnly] = useState(false);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState("");
   const [aiQuestion, setAiQuestion] = useState("Explain the failure and recommended troubleshooting steps.");
   const [maskIdentifiers, setMaskIdentifiers] = useState(true);
   const [aiStatus, setAiStatus] = useState<"idle" | "analyzing" | "error">("idle");
@@ -81,12 +82,34 @@ export default function Home() {
   const primaryError = result?.errors[0] || null;
   const visibleEvents = useMemo(() => {
     const events = result?.events || [];
+    const needle = searchText.trim().toLowerCase();
     return events.filter((event) => {
       const matchesProtocol = protocolFilter === "all" || event.protocol === protocolFilter;
       const matchesError = !errorsOnly || errorFrames.has(String(event.frame));
-      return matchesProtocol && matchesError;
+      const matchesSearch =
+        !needle ||
+        [
+          event.frame,
+          event.original_frame,
+          event.protocol,
+          event.protocols,
+          event.message,
+          event.host,
+          event.url,
+          event.redirect_url,
+          event.http_location,
+          event.dns_query,
+          event.http_host,
+          event.http_uri,
+          event.tls_sni,
+          event.sip_call_id,
+          event.src,
+          event.dst,
+        ]
+          .some((value) => String(value || "").toLowerCase().includes(needle));
+      return matchesProtocol && matchesError && matchesSearch;
     });
-  }, [errorFrames, errorsOnly, protocolFilter, result]);
+  }, [errorFrames, errorsOnly, protocolFilter, result, searchText]);
   const selectedEvent = useMemo(
     () => visibleEvents.find((event) => String(event.frame) === selectedFrame) || null,
     [selectedFrame, visibleEvents],
@@ -272,6 +295,14 @@ export default function Home() {
           <div className="panelTitle">
             <h2>Flow Ladder</h2>
             <div className="filters">
+              <label className="searchBox">
+                <Search size={16} />
+                <input
+                  value={searchText}
+                  placeholder="Search host, URL, frame, IP"
+                  onChange={(event) => setSearchText(event.target.value)}
+                />
+              </label>
               <select value={protocolFilter} onChange={(event) => setProtocolFilter(event.target.value)}>
                 <option value="all">All protocols</option>
                 {(result?.ai_context.trace_summary?.protocols || []).map((protocol) => (
@@ -380,9 +411,9 @@ export default function Home() {
           </div>
 
           <div className="panel">
-            <div className="panelTitle">
-              <h2>Recent Events</h2>
-              <span>First 200 normalized events</span>
+          <div className="panelTitle">
+            <h2>Recent Events</h2>
+              <span>{visibleEvents.length ? `${visibleEvents.length} matching events` : "No matching events"}</span>
             </div>
             <div className="table">
               <div className="row head">
@@ -390,6 +421,7 @@ export default function Home() {
                 <span>Protocol</span>
                 <span>Source</span>
                 <span>Destination</span>
+                <span>Host / URL</span>
               </div>
               {visibleEvents.slice(0, 12).map((event) => (
                 <button
@@ -401,6 +433,7 @@ export default function Home() {
                   <span>{String(event.protocol || event.protocols || "-")}</span>
                   <span>{String(event.src || "-")}</span>
                   <span>{String(event.dst || "-")}</span>
+                  <span>{String(event.redirect_url || event.url || event.host || "-")}</span>
                 </button>
               ))}
             </div>
@@ -681,6 +714,7 @@ function FrameDetails({
     ["Message", event.message],
     ["Host", event.host],
     ["URL", event.url],
+    ["Redirect URL", event.redirect_url],
     ["TEID", event.teid],
     ["Sequence", event.sequence_number],
     ["Cause", event.cause_code],
@@ -689,6 +723,7 @@ function FrameDetails({
     ["DNS query", event.dns_query],
     ["HTTP host", event.http_host],
     ["HTTP URI", event.http_uri],
+    ["HTTP Location", event.http_location],
     ["TLS SNI", event.tls_sni],
     ["SIP Call-ID", event.sip_call_id],
     ["MQTT topic", event.mqtt_topic],

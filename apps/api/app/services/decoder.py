@@ -2,6 +2,7 @@ import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from app.models.trace import DecodedTrace
@@ -99,6 +100,11 @@ def normalize_packet(packet: dict) -> dict:
 
     if "http" in layers and "protocol" not in event:
         event.update(normalize_http(layers["http"]))
+
+    if "tcp" in layers and "protocol" not in event:
+        http_payload = normalize_http_from_tcp(tcp)
+        if http_payload:
+            event.update(http_payload)
 
     if "sip" in layers and "protocol" not in event:
         event.update(normalize_sip(layers["sip"]))
@@ -224,26 +230,87 @@ def normalize_http(http: dict) -> dict:
     uri = recursive_get(http, "http.request.uri")
     full_uri = recursive_get(http, "http.request.full_uri")
     status_code = recursive_get(http, "http.response.code")
+    location = recursive_get(http, "http.location")
     url = normalize_url(host, uri, full_uri)
+    redirect_url = str(location) if location else None
     if method:
         target = url or f"{host or ''}{uri or ''}".strip() or "request"
         message = f"HTTP {method} {target}"
     elif status_code:
         message = f"HTTP Response {status_code}"
+        if redirect_url:
+            message = f"{message} -> {redirect_url}"
     else:
         message = "HTTP traffic"
 
     return {
         "protocol": "HTTP",
         "message": message,
-        "host": host,
-        "url": url,
+        "host": host or host_from_url(redirect_url),
+        "url": redirect_url or url,
+        "redirect_url": redirect_url,
+        "http_location": location,
         "http_method": method,
         "http_host": host,
         "http_uri": uri,
         "http_full_uri": full_uri,
         "http_status_code": status_code,
     }
+
+
+def normalize_http_from_tcp(tcp: dict) -> dict | None:
+    payload = decode_tcp_text(tcp)
+    if not payload:
+        return None
+    lines = payload.splitlines()
+    if not lines:
+        return None
+
+    first_line = lines[0].strip()
+    headers = http_headers(lines[1:])
+    host = headers.get("host")
+    location = headers.get("location")
+
+    if first_line.startswith("HTTP/"):
+        parts = first_line.split(" ", 2)
+        if len(parts) < 2 or not parts[1].isdigit():
+            return None
+        status_code = parts[1]
+        reason = parts[2] if len(parts) > 2 else ""
+        message = f"HTTP Response {status_code}"
+        if reason:
+            message = f"{message} {reason}"
+        if location:
+            message = f"{message} -> {location}"
+        return {
+            "protocol": "HTTP",
+            "message": message,
+            "host": host or host_from_url(location),
+            "url": location,
+            "redirect_url": location if status_code.startswith("3") else None,
+            "http_location": location,
+            "http_status_code": status_code,
+            "http_reason": reason,
+            "http_from_tcp_payload": True,
+        }
+
+    parts = first_line.split(" ", 2)
+    if len(parts) >= 2 and parts[0] in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}:
+        method = parts[0]
+        uri = parts[1]
+        url = normalize_url(host, uri, None)
+        return {
+            "protocol": "HTTP",
+            "message": f"HTTP {method} {url or uri}",
+            "host": host or host_from_url(uri),
+            "url": url,
+            "http_method": method,
+            "http_host": host,
+            "http_uri": uri,
+            "http_from_tcp_payload": True,
+        }
+
+    return None
 
 
 def normalize_sip(sip: dict) -> dict:
@@ -416,6 +483,42 @@ def normalize_url(host: object, uri: object, full_uri: object) -> str | None:
     if host:
         return str(host)
     return str(uri)
+
+
+def host_from_url(value: object) -> str | None:
+    if not value:
+        return None
+    parsed = urlparse(str(value))
+    return parsed.netloc or None
+
+
+def decode_tcp_text(tcp: dict) -> str | None:
+    payload = recursive_get(tcp, "tcp.payload") or recursive_get(tcp, "tcp.segment_data")
+    if not payload:
+        return None
+    raw_hex = str(payload).replace(":", "")
+    try:
+        raw = bytes.fromhex(raw_hex)
+    except ValueError:
+        return None
+    if not raw.startswith((b"HTTP/", b"GET ", b"POST ", b"PUT ", b"PATCH ", b"DELETE ", b"HEAD ", b"OPTIONS ")):
+        return None
+    try:
+        return raw.decode("iso-8859-1")
+    except UnicodeDecodeError:
+        return None
+
+
+def http_headers(lines: list[str]) -> dict[str, str]:
+    headers = {}
+    for line in lines:
+        if not line.strip():
+            break
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        headers[key.strip().lower()] = value.strip()
+    return headers
 
 
 def sip_host(uri: object) -> str | None:

@@ -1,82 +1,5 @@
 from app.models.trace import TraceAnalysis
-
-
-DIAMETER_ERROR_CODES = {
-    "5001": "DIAMETER_ERROR_USER_UNKNOWN",
-    "5003": "DIAMETER_ERROR_IDENTITY_NOT_REGISTERED",
-    "5004": "DIAMETER_ERROR_ROAMING_NOT_ALLOWED",
-    "5005": "DIAMETER_ERROR_UNKNOWN_EPS_SUBSCRIPTION",
-}
-
-GTPV2_FAILURE_CAUSES = {
-    "64": {
-        "name": "Context Not Found",
-        "root_cause": "The peer could not find the referenced session or tunnel context.",
-        "recommended_checks": [
-            "Check TEID and sequence correlation against earlier session messages.",
-            "Confirm the session was not already deleted or timed out.",
-            "Inspect peer node logs around the reported frame.",
-        ],
-    },
-    "65": {
-        "name": "Invalid Message Format",
-        "root_cause": "The peer rejected the message because mandatory fields or encoding are invalid.",
-        "recommended_checks": [
-            "Validate the request IE layout against 3GPP expectations.",
-            "Check vendor interop issues or malformed optional IEs.",
-        ],
-    },
-    "66": {
-        "name": "Version Not Supported",
-        "root_cause": "The peer does not support the received GTP protocol version.",
-        "recommended_checks": [
-            "Verify interface protocol version configuration on both peers.",
-            "Check whether traffic is reaching the intended node.",
-        ],
-    },
-    "68": {
-        "name": "Service Not Supported",
-        "root_cause": "The receiving node does not support the requested service or procedure.",
-        "recommended_checks": [
-            "Confirm the target node supports the requested procedure.",
-            "Check node role and interface routing.",
-        ],
-    },
-    "72": {
-        "name": "System Failure",
-        "root_cause": "The receiving node reported an internal system failure.",
-        "recommended_checks": [
-            "Check node health, overload, and application logs.",
-            "Verify whether the failure is repeated for other subscribers.",
-            "Inspect alarms around the trace timestamp.",
-        ],
-    },
-    "73": {
-        "name": "No Resources Available",
-        "root_cause": "The receiving node could not allocate required resources for the session.",
-        "recommended_checks": [
-            "Check capacity, license, and pool utilization on the peer node.",
-            "Verify whether the condition affects one APN/DNN or all traffic.",
-        ],
-    },
-    "93": {
-        "name": "APN Access Denied",
-        "root_cause": "The subscriber or network policy does not allow access to the requested APN.",
-        "recommended_checks": [
-            "Verify the subscriber APN profile in HSS/UDM.",
-            "Check APN spelling and APN/DNN selection in the request.",
-            "Review roaming restrictions and policy-control response for this subscriber.",
-        ],
-    },
-}
-
-DNS_ERROR_CODES = {
-    "1": "DNS FormErr",
-    "2": "DNS ServFail",
-    "3": "DNS NXDomain",
-    "4": "DNS NotImp",
-    "5": "DNS Refused",
-}
+from app.services.knowledge import load_error_codes, load_procedure_rules
 
 
 def analyze_events(
@@ -87,114 +10,36 @@ def analyze_events(
     endpoint_mapping = endpoint_mapping or {}
     settings = settings or {}
     events = filter_events(events, settings)
+    error_codes = load_error_codes()
     errors = []
 
     for event in events:
         diameter_code = str(event.get("result_code") or event.get("experimental_result_code") or "")
-        if diameter_code in DIAMETER_ERROR_CODES:
-            errors.append(
-                {
-                    "frame": event.get("frame"),
-                    "severity": "critical",
-                    "protocol": "Diameter",
-                    "code": diameter_code,
-                    "error": DIAMETER_ERROR_CODES[diameter_code],
-                    "evidence": f"Diameter failure code {diameter_code} at frame {event.get('frame')}",
-                }
-            )
+        diameter_failure = lookup_error(error_codes, "diameter", diameter_code)
+        if diameter_failure:
+            errors.append(build_error(event, "Diameter", diameter_code, diameter_failure))
 
         gtp_cause = str(event.get("cause_code") or "")
-        if gtp_cause in GTPV2_FAILURE_CAUSES:
-            failure = GTPV2_FAILURE_CAUSES[gtp_cause]
-            errors.append(
-                {
-                    "frame": event.get("frame"),
-                    "severity": "critical",
-                    "protocol": "GTPv2-C",
-                    "code": gtp_cause,
-                    "error": failure["name"],
-                    "root_cause": failure["root_cause"],
-                    "recommended_checks": failure["recommended_checks"],
-                    "evidence": (
-                        f"{event.get('message', 'GTPv2-C message')} returned cause {gtp_cause} "
-                        f"({failure['name']}) at frame {event.get('frame')}"
-                    ),
-                }
-            )
+        gtp_failure = lookup_error(error_codes, "gtpv2_c", gtp_cause)
+        if gtp_failure:
+            errors.append(build_error(event, "GTPv2-C", gtp_cause, gtp_failure))
 
         dns_code = str(event.get("dns_response_code") or "")
-        if event.get("protocol") == "DNS" and dns_code not in {"", "0", "None"}:
-            errors.append(
-                {
-                    "frame": event.get("frame"),
-                    "severity": "warning",
-                    "protocol": "DNS",
-                    "code": dns_code,
-                    "error": DNS_ERROR_CODES.get(dns_code, f"DNS error {dns_code}"),
-                    "root_cause": "The resolver returned a DNS failure for the requested name.",
-                    "recommended_checks": [
-                        "Check whether the CPE can reach the configured DNS resolver.",
-                        "Verify the requested domain and DNS zone records.",
-                        "Compare DNS response timing with surrounding TCP or application failures.",
-                    ],
-                    "evidence": (
-                        f"DNS response for {event.get('dns_query') or 'query'} returned "
-                        f"{DNS_ERROR_CODES.get(dns_code, dns_code)} at frame {event.get('frame')}"
-                    ),
-                }
-            )
+        dns_failure = lookup_error(error_codes, "dns", dns_code)
+        if event.get("protocol") == "DNS" and dns_failure:
+            errors.append(build_error(event, "DNS", dns_code, dns_failure))
 
-        if event.get("tcp_reset"):
-            errors.append(
-                {
-                    "frame": event.get("frame"),
-                    "severity": "warning",
-                    "protocol": "TCP",
-                    "code": "RST",
-                    "error": "TCP Reset",
-                    "root_cause": "One endpoint reset the TCP connection.",
-                    "recommended_checks": [
-                        "Check whether the reset comes from the CPE, server, firewall, or proxy.",
-                        "Inspect the previous frames in the same TCP stream for TLS, HTTP, or application errors.",
-                        "Validate routing, firewall policy, and service availability for the destination.",
-                    ],
-                    "evidence": f"TCP RST observed at frame {event.get('frame')}",
-                }
-            )
+        tcp_reset = lookup_error(error_codes, "tcp", "RST")
+        if event.get("tcp_reset") and tcp_reset:
+            errors.append(build_error(event, "TCP", "RST", tcp_reset))
 
-        if event.get("tls_alert"):
-            errors.append(
-                {
-                    "frame": event.get("frame"),
-                    "severity": "warning",
-                    "protocol": "TLS",
-                    "code": str(event.get("tls_alert")),
-                    "error": "TLS Alert",
-                    "root_cause": "A TLS peer reported an encrypted-session alert.",
-                    "recommended_checks": [
-                        "Check certificate validity, SNI, TLS version, and cipher compatibility.",
-                        "Compare the alert with the preceding Client Hello and Server Hello.",
-                    ],
-                    "evidence": f"TLS alert {event.get('tls_alert')} observed at frame {event.get('frame')}",
-                }
-            )
+        tls_alert = lookup_error(error_codes, "tls", "alert")
+        if event.get("tls_alert") and tls_alert:
+            errors.append(build_error(event, "TLS", str(event.get("tls_alert")), tls_alert))
 
-        if event.get("is_retransmission"):
-            errors.append(
-                {
-                    "frame": event.get("frame"),
-                    "severity": "info",
-                    "protocol": "TCP",
-                    "code": "retransmission",
-                    "error": "TCP Retransmission",
-                    "root_cause": "A TCP segment was retransmitted, usually because an ACK was delayed or lost.",
-                    "recommended_checks": [
-                        "Check packet loss, latency, and asymmetric routing on the path.",
-                        "Look for repeated retransmissions in the same TCP stream before declaring a fault.",
-                    ],
-                    "evidence": f"TCP retransmission detected at frame {event.get('frame')}",
-                }
-            )
+        tcp_retransmission = lookup_error(error_codes, "tcp", "retransmission")
+        if event.get("is_retransmission") and tcp_retransmission:
+            errors.append(build_error(event, "TCP", "retransmission", tcp_retransmission))
 
     error_frames = {err.get("frame") for err in errors}
     participants = build_participants(events, endpoint_mapping)
@@ -225,57 +70,44 @@ def analyze_events(
 
     return TraceAnalysis(errors=errors, ai_context=ai_context)
 
+def lookup_error(error_codes: dict, domain: str, code: object) -> dict | None:
+    if code is None or code == "":
+        return None
+    return error_codes.get(domain, {}).get(str(code))
 
-PROCEDURE_GROUP_RULES = [
-    {
-        "name": "LTE Attach",
-        "technology": "4G",
-        "keywords": ["Attach", "Authentication", "Security Mode", "Initial Context", "Initial UE"],
-        "protocols": ["S1AP", "Diameter"],
-    },
-    {
-        "name": "LTE Session Establishment",
-        "technology": "4G",
-        "keywords": ["Create Session", "Create Bearer", "Modify Bearer", "Create PDP Context"],
-        "protocols": ["GTPv1-C", "GTPv2-C"],
-    },
-    {
-        "name": "LTE Detach",
-        "technology": "4G",
-        "keywords": ["Detach", "Delete Session", "Delete Bearer", "Delete PDP Context"],
-        "protocols": ["S1AP", "GTPv1-C", "GTPv2-C"],
-    },
-    {
-        "name": "5G Registration",
-        "technology": "5G",
-        "keywords": ["Registration", "Authentication", "Security Mode", "Initial UE"],
-        "protocols": ["NGAP", "HTTP/2"],
-    },
-    {
-        "name": "5G PDU Session",
-        "technology": "5G",
-        "keywords": ["PDU Session", "PFCP Session", "Nsmf", "Namf"],
-        "protocols": ["NGAP", "PFCP", "HTTP/2"],
-    },
-    {
-        "name": "IMS Registration",
-        "technology": "IMS",
-        "keywords": ["REGISTER", "SIP", "IMS", "P-CSCF"],
-        "protocols": ["SIP"],
-    },
-    {
-        "name": "CPE Name Resolution",
-        "technology": "CPE",
-        "keywords": ["DNS Query", "DNS Response", "NXDomain", "ServFail", "Refused"],
-        "protocols": ["DNS"],
-    },
-    {
-        "name": "CPE Internet Session",
-        "technology": "CPE",
-        "keywords": ["TCP", "TLS", "HTTP", "QUIC", "MQTT", "SSH"],
-        "protocols": ["TCP", "TLS", "HTTP", "QUIC", "MQTT", "SSH"],
-    },
-]
+
+def build_error(event: dict, protocol: str, code: object, definition: dict) -> dict:
+    frame = event.get("frame")
+    name = definition["name"]
+    return {
+        "frame": frame,
+        "severity": definition.get("severity", "warning"),
+        "protocol": protocol,
+        "code": str(code),
+        "error": name,
+        "root_cause": definition.get("root_cause", "TraceLens matched this frame to a local protocol rule."),
+        "recommended_checks": definition.get("recommended_checks", []),
+        "evidence": build_error_evidence(event, protocol, code, name),
+    }
+
+
+def build_error_evidence(event: dict, protocol: str, code: object, name: str) -> str:
+    frame = event.get("frame")
+    if protocol == "GTPv2-C":
+        message = event.get("message") or "GTPv2-C message"
+        return f"{message} returned cause {code} ({name}) at frame {frame}."
+    if protocol == "Diameter":
+        return f"Diameter failure code {code} ({name}) at frame {frame}."
+    if protocol == "DNS":
+        query = event.get("dns_query") or "query"
+        return f"DNS response for {query} returned {name} at frame {frame}."
+    if protocol == "TCP" and str(code) == "RST":
+        return f"TCP RST observed at frame {frame}."
+    if protocol == "TCP" and str(code) == "retransmission":
+        return f"TCP retransmission detected at frame {frame}."
+    if protocol == "TLS":
+        return f"TLS alert {code} observed at frame {frame}."
+    return f"{protocol} matched local rule {name} at frame {frame}."
 
 
 def filter_events(events: list[dict], settings: dict) -> list[dict]:
@@ -307,7 +139,7 @@ def filter_events(events: list[dict], settings: dict) -> list[dict]:
 
 
 def build_procedure_groups(events: list[dict], procedures: list[dict], errors: list[dict]) -> list[dict]:
-    groups = [build_group(rule, events, procedures, errors) for rule in PROCEDURE_GROUP_RULES]
+    groups = [build_group(rule, events, procedures, errors) for rule in load_procedure_rules()]
     groups = [group for group in groups if group["event_count"] or group["procedure_count"]]
 
     grouped_frames = {frame for group in groups for frame in group["frames"]}

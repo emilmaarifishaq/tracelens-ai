@@ -1,0 +1,96 @@
+procedure_groups:
+  - name: LTE Attach
+    technology: 4G
+    keywords:
+      - Attach
+      - Authentication
+      - Security Mode
+      - Initial Context
+      - Initial UE
+    protocols:
+      - S1AP
+      - Diameter
+
+  - name: LTE Session Establishment
+    technology: 4G
+    keywords:
+      - Create Session
+      - Create Bearer
+      - Modify Bearer
+      - Create PDP Context
+    protocols:
+      - GTPv1-C
+      - GTPv2-C
+
+  - name: LTE Detach
+    technology: 4G
+    keywords:
+      - Detach
+      - Delete Session
+      - Delete Bearer
+      - Delete PDP Context
+    protocols:
+      - S1AP
+      - GTPv1-C
+      - GTPv2-C
+
+  - name: 5G Registration
+    technology: 5G
+    keywords:
+      - Registration
+      - Authentication
+      - Security Mode
+      - Initial UE
+    protocols:
+      - NGAP
+      - HTTP/2
+
+  - name: 5G PDU Session
+    technology: 5G
+    keywords:
+      - PDU Session
+      - PFCP Session
+      - Nsmf
+      - Namf
+    protocols:
+      - NGAP
+      - PFCP
+      - HTTP/2
+
+  - name: IMS Registration
+    technology: IMS
+    keywords:
+      - REGISTER
+      - SIP
+      - IMS
+      - P-CSCF
+    protocols:
+      - SIP
+
+  - name: CPE Name Resolution
+    technology: CPE
+    keywords:
+      - DNS Query
+      - DNS Response
+      - NXDomain
+      - ServFail
+      - Refused
+    protocols:
+      - DNS
+
+  - name: CPE Internet Session
+    technology: CPE
+    keywords:
+      - TCP
+      - TLS
+      - HTTP
+      - QUIC
+      - MQTT
+      - SSH
+    protocols:
+      - TCP
+      - TLS
+      - HTTP
+      - QUIC
+      - MQTT
+      - SSH

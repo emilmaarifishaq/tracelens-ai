@@ -12,6 +12,7 @@ TraceLens AI turns uploaded PCAP/PCAPNG files into readable protocol flows, dete
 - Normalized event model
 - GTPv2-C and Diameter starter extraction
 - Rule-based error detection
+- Local protocol knowledge library for error codes, likely root cause, recommended checks, and procedure grouping
 - AI-ready trace summary payload
 - AI explanation endpoint with offline fallback
 - Endpoint mapping with manual YAML/JSON and Kubernetes pod YAML
@@ -91,6 +92,13 @@ uvicorn app.main:app --reload
 
 ## AI Design
 
+TraceLens is local-knowledge first and AI second. The decoder, normalizer, error-code library, and procedure rules produce the baseline troubleshooting result before any AI provider is used.
+
+Local knowledge lives in:
+
+- `apps/api/app/knowledge/error_codes.yaml`
+- `apps/api/app/knowledge/procedure_rules.yaml`
+
 AI receives structured, redacted trace evidence instead of raw PCAP bytes. Every AI answer should cite frame numbers and state when evidence is insufficient.
 
 The API exposes `POST /analysis/explain`. Without an AI provider key, TraceLens returns the local rule-engine explanation so troubleshooting still works offline. When an AI provider is configured, the same endpoint sends the masked AI context to the provider and includes the model answer beside the rule-engine baseline.
@@ -123,3 +131,9 @@ apps/api/.venv/bin/python samples/download_external_captures.py --technology 4G
 ```
 
 Downloaded captures are stored under `samples/external/` and are intentionally ignored by Git.
+
+Run deterministic smoke tests against local samples:
+
+```bash
+PYTHONPATH=apps/api apps/api/.venv/bin/python apps/api/scripts/smoke_test_samples.py
+```

@@ -1,0 +1,147 @@
+diameter:
+  "5001":
+    name: DIAMETER_ERROR_USER_UNKNOWN
+    severity: critical
+    root_cause: The subscriber identity is unknown to the Diameter peer.
+    recommended_checks:
+      - Verify IMSI/SUPI provisioning in HSS/UDM.
+      - Check realm routing and Diameter peer selection.
+      - Confirm the subscriber belongs to the queried network or roaming partner.
+  "5003":
+    name: DIAMETER_ERROR_IDENTITY_NOT_REGISTERED
+    severity: critical
+    root_cause: The identity is known but not registered for the requested service.
+    recommended_checks:
+      - Check subscriber registration state.
+      - Verify service profile and access restrictions.
+  "5004":
+    name: DIAMETER_ERROR_ROAMING_NOT_ALLOWED
+    severity: critical
+    root_cause: The subscriber is not allowed to roam on this network.
+    recommended_checks:
+      - Check roaming agreement and subscriber roaming flags.
+      - Verify visited-network policy and HSS/UDM subscription data.
+  "5005":
+    name: DIAMETER_ERROR_UNKNOWN_EPS_SUBSCRIPTION
+    severity: critical
+    root_cause: The HSS/UDM does not have an EPS subscription for this subscriber.
+    recommended_checks:
+      - Verify EPS/packet-data subscription is enabled.
+      - Check APN profile assignment and subscriber package.
+
+gtpv2_c:
+  "64":
+    name: Context Not Found
+    severity: critical
+    root_cause: The peer could not find the referenced session or tunnel context.
+    recommended_checks:
+      - Check TEID and sequence correlation against earlier session messages.
+      - Confirm the session was not already deleted or timed out.
+      - Inspect peer node logs around the reported frame.
+  "65":
+    name: Invalid Message Format
+    severity: critical
+    root_cause: The peer rejected the message because mandatory fields or encoding are invalid.
+    recommended_checks:
+      - Validate the request IE layout against 3GPP expectations.
+      - Check vendor interop issues or malformed optional IEs.
+  "66":
+    name: Version Not Supported
+    severity: critical
+    root_cause: The peer does not support the received GTP protocol version.
+    recommended_checks:
+      - Verify interface protocol version configuration on both peers.
+      - Check whether traffic is reaching the intended node.
+  "68":
+    name: Service Not Supported
+    severity: critical
+    root_cause: The receiving node does not support the requested service or procedure.
+    recommended_checks:
+      - Confirm the target node supports the requested procedure.
+      - Check node role and interface routing.
+  "72":
+    name: System Failure
+    severity: critical
+    root_cause: The receiving node reported an internal system failure.
+    recommended_checks:
+      - Check node health, overload, and application logs.
+      - Verify whether the failure is repeated for other subscribers.
+      - Inspect alarms around the trace timestamp.
+  "73":
+    name: No Resources Available
+    severity: critical
+    root_cause: The receiving node could not allocate required resources for the session.
+    recommended_checks:
+      - Check capacity, license, and pool utilization on the peer node.
+      - Verify whether the condition affects one APN/DNN or all traffic.
+  "93":
+    name: APN Access Denied
+    severity: critical
+    root_cause: The subscriber or network policy does not allow access to the requested APN.
+    recommended_checks:
+      - Verify the subscriber APN profile in HSS/UDM.
+      - Check APN spelling and APN/DNN selection in the request.
+      - Review roaming restrictions and policy-control response for this subscriber.
+
+dns:
+  "1":
+    name: DNS FormErr
+    severity: warning
+    root_cause: The DNS server could not interpret the query format.
+    recommended_checks:
+      - Check CPE DNS client behavior and resolver compatibility.
+      - Inspect whether malformed or truncated DNS packets appear before the response.
+  "2":
+    name: DNS ServFail
+    severity: warning
+    root_cause: The resolver failed while processing the DNS query.
+    recommended_checks:
+      - Check upstream resolver reachability and health.
+      - Verify recursive lookup path and authoritative DNS availability.
+  "3":
+    name: DNS NXDomain
+    severity: warning
+    root_cause: The requested DNS name does not exist according to the resolver.
+    recommended_checks:
+      - Verify the requested domain and DNS zone records.
+      - Check whether the CPE uses the correct provisioning or ACS/FWA endpoint FQDN.
+      - Compare DNS response timing with surrounding TCP or application failures.
+  "4":
+    name: DNS NotImp
+    severity: warning
+    root_cause: The resolver does not support the requested DNS operation.
+    recommended_checks:
+      - Check DNS query type and resolver feature support.
+  "5":
+    name: DNS Refused
+    severity: warning
+    root_cause: The resolver refused to answer the DNS query.
+    recommended_checks:
+      - Check resolver ACLs, source IP policy, and CPE DNS configuration.
+      - Verify whether the CPE is querying the expected DNS server.
+
+tcp:
+  RST:
+    name: TCP Reset
+    severity: warning
+    root_cause: One endpoint reset the TCP connection.
+    recommended_checks:
+      - Check whether the reset comes from the CPE, server, firewall, or proxy.
+      - Inspect the previous frames in the same TCP stream for TLS, HTTP, or application errors.
+      - Validate routing, firewall policy, and service availability for the destination.
+  retransmission:
+    name: TCP Retransmission
+    severity: info
+    root_cause: A TCP segment was retransmitted, usually because an ACK was delayed or lost.
+    recommended_checks:
+      - Check packet loss, latency, and asymmetric routing on the path.
+      - Look for repeated retransmissions in the same TCP stream before declaring a fault.
+
+tls:
+  alert:
+    name: TLS Alert
+    severity: warning
+    root_cause: A TLS peer reported an encrypted-session alert.
+    recommended_checks:
+      - Check certificate validity, SNI, TLS version, and cipher compatibility.
+      - Compare the alert with the preceding Client Hello and Server Hello.

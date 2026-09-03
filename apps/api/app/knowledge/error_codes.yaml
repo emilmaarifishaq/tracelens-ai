@@ -83,6 +83,94 @@ gtpv2_c:
       - Check APN spelling and APN/DNN selection in the request.
       - Review roaming restrictions and policy-control response for this subscriber.
 
+pfcp:
+  "64":
+    name: PFCP Request Rejected
+    severity: critical
+    root_cause: The PFCP peer rejected the request without a more specific accepted cause.
+    recommended_checks:
+      - Check UPF/SMF logs for the matching SEID or sequence number.
+      - Verify PFCP association state and node role selection.
+      - Inspect whether mandatory session rules were built before the request.
+  "65":
+    name: PFCP Session Context Not Found
+    severity: critical
+    root_cause: The peer could not find the referenced PFCP session context.
+    recommended_checks:
+      - Check SEID correlation against PFCP Session Establishment.
+      - Confirm the session was not already deleted or timed out.
+      - Verify traffic is reaching the intended UPF or SMF instance.
+  "66":
+    name: PFCP Mandatory IE Missing
+    severity: critical
+    root_cause: The PFCP request is missing a mandatory information element.
+    recommended_checks:
+      - Decode the PFCP message and compare IEs against the expected procedure.
+      - Check SMF/UPF software compatibility and feature flags.
+  "67":
+    name: PFCP Conditional IE Missing
+    severity: warning
+    root_cause: A conditionally required PFCP information element is absent.
+    recommended_checks:
+      - Check whether the selected feature or rule requires additional IEs.
+      - Compare with a successful trace for the same PDU session type.
+  "68":
+    name: PFCP Invalid Length
+    severity: critical
+    root_cause: The peer found an invalid PFCP information element length.
+    recommended_checks:
+      - Check for malformed packet encoding or vendor interop issues.
+      - Inspect whether packet capture truncation affected the decode.
+  "69":
+    name: PFCP Mandatory IE Incorrect
+    severity: critical
+    root_cause: A mandatory PFCP information element is present but invalid.
+    recommended_checks:
+      - Validate FAR/PDR/QER/URR content in the failing request.
+      - Check tunnel endpoint, precedence, and rule identifier values.
+  "70":
+    name: PFCP Invalid Forwarding Policy
+    severity: critical
+    root_cause: The selected forwarding policy is not valid on the peer.
+    recommended_checks:
+      - Verify forwarding policy configuration on the UPF.
+      - Check SMF policy selection and slice/APN/DNN mapping.
+  "72":
+    name: PFCP Association Not Established
+    severity: critical
+    root_cause: The PFCP peer has no established association for the requested operation.
+    recommended_checks:
+      - Verify PFCP Association Setup completed before session messages.
+      - Check node restart, heartbeat loss, firewall, and UDP 8805 reachability.
+  "73":
+    name: PFCP Rule Creation Or Modification Failure
+    severity: critical
+    root_cause: The peer failed to create or modify one or more PFCP rules.
+    recommended_checks:
+      - Inspect offending IE details for PDR, FAR, QER, or URR failures.
+      - Check UPF resource limits and unsupported rule combinations.
+  "75":
+    name: PFCP No Resources Available
+    severity: critical
+    root_cause: The peer does not have enough resources to complete the PFCP request.
+    recommended_checks:
+      - Check UPF capacity, license, memory, tunnel, and rule table usage.
+      - Verify whether failures affect one DNN/slice or the whole node.
+  "76":
+    name: PFCP Service Not Supported
+    severity: critical
+    root_cause: The peer does not support the requested PFCP service or feature.
+    recommended_checks:
+      - Check UPF capability advertisement and SMF feature selection.
+      - Verify vendor interop matrix for the requested feature.
+  "77":
+    name: PFCP System Failure
+    severity: critical
+    root_cause: The peer reported an internal PFCP system failure.
+    recommended_checks:
+      - Check UPF/SMF health, alarms, overload state, and application logs.
+      - Compare with other subscribers around the same timestamp.
+
 dns:
   "1":
     name: DNS FormErr
@@ -145,3 +233,157 @@ tls:
     recommended_checks:
       - Check certificate validity, SNI, TLS version, and cipher compatibility.
       - Compare the alert with the preceding Client Hello and Server Hello.
+
+http:
+  4xx:
+    name: HTTP Client Error
+    severity: warning
+    root_cause: The server rejected the HTTP request due to request, authentication, authorization, or resource issues.
+    recommended_checks:
+      - Check URL, method, headers, authentication token, and client identity.
+      - Verify the destination service route and application logs for the same request.
+  5xx:
+    name: HTTP Server Error
+    severity: critical
+    root_cause: The HTTP server or upstream service failed while processing the request.
+    recommended_checks:
+      - Check server health, upstream dependency errors, and load balancer logs.
+      - Verify whether the failure is repeated across clients or isolated to this flow.
+  "401":
+    name: HTTP Unauthorized
+    severity: warning
+    root_cause: The request was not accepted because authentication is missing or invalid.
+    recommended_checks:
+      - Verify credentials, token lifetime, and authorization header handling.
+      - Check clock sync if token validation depends on expiry timestamps.
+  "403":
+    name: HTTP Forbidden
+    severity: warning
+    root_cause: The client is authenticated or known but not permitted to access this resource.
+    recommended_checks:
+      - Check role, policy, tenant, APN/DNN, slice, or device entitlement.
+      - Verify ACLs and application authorization logs.
+  "404":
+    name: HTTP Not Found
+    severity: warning
+    root_cause: The requested HTTP resource or route was not found.
+    recommended_checks:
+      - Check URL path, host header, virtual host, and service routing.
+      - Verify whether the CPE or client has the correct ACS/API endpoint.
+  "408":
+    name: HTTP Request Timeout
+    severity: warning
+    root_cause: The server timed out waiting for the client request.
+    recommended_checks:
+      - Check packet loss, latency, retransmissions, and client upload behavior.
+      - Inspect server timeout configuration.
+  "500":
+    name: HTTP Internal Server Error
+    severity: critical
+    root_cause: The application encountered an internal error.
+    recommended_checks:
+      - Check application logs and backend dependency failures.
+      - Correlate the HTTP request with server-side trace or request ID.
+  "502":
+    name: HTTP Bad Gateway
+    severity: critical
+    root_cause: A gateway or proxy received an invalid response from an upstream service.
+    recommended_checks:
+      - Check upstream service health, DNS, TLS, and proxy configuration.
+      - Verify load balancer target selection and backend port mapping.
+  "503":
+    name: HTTP Service Unavailable
+    severity: critical
+    root_cause: The service is unavailable, overloaded, draining, or temporarily blocked.
+    recommended_checks:
+      - Check service availability, autoscaling, maintenance, and overload alarms.
+      - Verify retry-after headers and upstream capacity.
+  "504":
+    name: HTTP Gateway Timeout
+    severity: critical
+    root_cause: A gateway or proxy timed out waiting for an upstream service.
+    recommended_checks:
+      - Check upstream latency, routing, firewall, and dependency response time.
+      - Inspect gateway timeout settings and backend saturation.
+
+sip:
+  4xx:
+    name: SIP Client Failure
+    severity: warning
+    root_cause: The SIP request was rejected because of user, authentication, routing, or request conditions.
+    recommended_checks:
+      - Check IMPU/IMPI registration state, realm, route set, and subscriber service profile.
+      - Inspect P-CSCF/S-CSCF logs for the same Call-ID.
+  5xx:
+    name: SIP Server Failure
+    severity: critical
+    root_cause: A SIP server failed while handling the request.
+    recommended_checks:
+      - Check IMS node health, overload, DNS/SRV routing, and application logs.
+      - Verify whether failures affect all subscribers or one registration/dialog.
+  6xx:
+    name: SIP Global Failure
+    severity: critical
+    root_cause: The SIP request failed globally and should not be retried to another destination.
+    recommended_checks:
+      - Check subscriber barring, service policy, and called-party state.
+      - Correlate with HSS/UDM and IMS service profile data.
+  "403":
+    name: SIP Forbidden
+    severity: warning
+    root_cause: The SIP user or request is not permitted by IMS policy.
+    recommended_checks:
+      - Verify subscriber IMS service profile and registration authorization.
+      - Check realm, authentication vector, and P-CSCF/S-CSCF policy.
+  "404":
+    name: SIP Not Found
+    severity: warning
+    root_cause: The SIP user or route target was not found.
+    recommended_checks:
+      - Verify IMPU, domain, ENUM/DNS routing, and registration state.
+      - Check S-CSCF assignment and user profile availability.
+  "408":
+    name: SIP Request Timeout
+    severity: warning
+    root_cause: No timely SIP response was received for the request.
+    recommended_checks:
+      - Check packet loss, DNS/SRV routing, firewall, and IMS node reachability.
+      - Inspect retransmissions and transaction timers.
+  "480":
+    name: SIP Temporarily Unavailable
+    severity: warning
+    root_cause: The called user or service is temporarily unavailable.
+    recommended_checks:
+      - Check user registration state and terminating service handling.
+      - Verify routing to the assigned S-CSCF/application server.
+  "486":
+    name: SIP Busy Here
+    severity: info
+    root_cause: The destination endpoint reported a busy condition.
+    recommended_checks:
+      - Confirm whether the busy response is expected user behavior.
+      - Check call state and supplementary service configuration.
+  "500":
+    name: SIP Server Internal Error
+    severity: critical
+    root_cause: The SIP server encountered an internal error.
+    recommended_checks:
+      - Check IMS node logs for the Call-ID and transaction branch.
+      - Inspect backend database, HSS/UDM, or application server dependency errors.
+  "503":
+    name: SIP Service Unavailable
+    severity: critical
+    root_cause: A SIP server or service is unavailable or overloaded.
+    recommended_checks:
+      - Check IMS node health, overload control, DNS/SRV routing, and maintenance state.
+      - Verify alternate route selection and retry behavior.
+
+dhcp:
+  "6":
+    name: DHCP NAK
+    severity: warning
+    root_cause: The DHCP server rejected the client's requested address or lease state.
+    recommended_checks:
+      - Check whether the requested IP belongs to the correct subnet and pool.
+      - Verify CPE/client lease state, VLAN, option 82, and DHCP server binding.
+      - Confirm DHCP relay path and address pool availability.

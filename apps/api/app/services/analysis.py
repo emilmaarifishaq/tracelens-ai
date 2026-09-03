@@ -16,18 +16,38 @@ def analyze_events(
     for event in events:
         diameter_code = str(event.get("result_code") or event.get("experimental_result_code") or "")
         diameter_failure = lookup_error(error_codes, "diameter", diameter_code)
-        if diameter_failure:
+        if event.get("protocol") == "Diameter" and diameter_failure:
             errors.append(build_error(event, "Diameter", diameter_code, diameter_failure))
 
         gtp_cause = str(event.get("cause_code") or "")
         gtp_failure = lookup_error(error_codes, "gtpv2_c", gtp_cause)
-        if gtp_failure:
+        if event.get("protocol") in {"GTPv1-C", "GTPv2-C"} and gtp_failure:
             errors.append(build_error(event, "GTPv2-C", gtp_cause, gtp_failure))
+
+        pfcp_cause = str(event.get("cause_code") or "")
+        pfcp_failure = lookup_error(error_codes, "pfcp", pfcp_cause)
+        if event.get("protocol") == "PFCP" and pfcp_failure:
+            errors.append(build_error(event, "PFCP", pfcp_cause, pfcp_failure))
 
         dns_code = str(event.get("dns_response_code") or "")
         dns_failure = lookup_error(error_codes, "dns", dns_code)
         if event.get("protocol") == "DNS" and dns_failure:
             errors.append(build_error(event, "DNS", dns_code, dns_failure))
+
+        http_code = str(event.get("http_status_code") or "")
+        http_failure = lookup_status_error(error_codes, "http", http_code)
+        if event.get("protocol") == "HTTP" and http_failure:
+            errors.append(build_error(event, "HTTP", http_code, http_failure))
+
+        sip_code = str(event.get("sip_status_code") or "")
+        sip_failure = lookup_status_error(error_codes, "sip", sip_code)
+        if event.get("protocol") == "SIP" and sip_failure:
+            errors.append(build_error(event, "SIP", sip_code, sip_failure))
+
+        dhcp_type = str(event.get("dhcp_message_type") or "")
+        dhcp_failure = lookup_error(error_codes, "dhcp", dhcp_type)
+        if event.get("protocol") == "DHCP" and dhcp_failure:
+            errors.append(build_error(event, "DHCP", dhcp_type, dhcp_failure))
 
         tcp_reset = lookup_error(error_codes, "tcp", "RST")
         if event.get("tcp_reset") and tcp_reset:
@@ -62,7 +82,7 @@ def analyze_events(
             event
             for event in events
             if event.get("protocol")
-            in {"GTPv1-C", "GTPv2-C", "GTP-U", "Diameter", "DNS", "HTTP", "TLS", "MQTT", "QUIC", "TCP"}
+            in {"GTPv1-C", "GTPv2-C", "GTP-U", "Diameter", "PFCP", "DNS", "DHCP", "HTTP", "SIP", "TLS", "MQTT", "QUIC", "TCP"}
             or event.get("frame") in error_frames
         ][:100],
         "instruction": "Explain only what is supported by the provided frame evidence. Cite frame numbers.",
@@ -70,10 +90,23 @@ def analyze_events(
 
     return TraceAnalysis(errors=errors, ai_context=ai_context)
 
+
 def lookup_error(error_codes: dict, domain: str, code: object) -> dict | None:
     if code is None or code == "":
         return None
     return error_codes.get(domain, {}).get(str(code))
+
+
+def lookup_status_error(error_codes: dict, domain: str, code: object) -> dict | None:
+    if code is None or code == "":
+        return None
+    exact = lookup_error(error_codes, domain, code)
+    if exact:
+        return exact
+    status_code = parse_status_code(code)
+    if status_code and status_code >= 400:
+        return lookup_error(error_codes, domain, f"{status_code // 100}xx")
+    return None
 
 
 def build_error(event: dict, protocol: str, code: object, definition: dict) -> dict:
@@ -96,11 +129,24 @@ def build_error_evidence(event: dict, protocol: str, code: object, name: str) ->
     if protocol == "GTPv2-C":
         message = event.get("message") or "GTPv2-C message"
         return f"{message} returned cause {code} ({name}) at frame {frame}."
+    if protocol == "PFCP":
+        message = event.get("message") or "PFCP message"
+        return f"{message} returned cause {code} ({name}) at frame {frame}."
     if protocol == "Diameter":
         return f"Diameter failure code {code} ({name}) at frame {frame}."
     if protocol == "DNS":
         query = event.get("dns_query") or "query"
         return f"DNS response for {query} returned {name} at frame {frame}."
+    if protocol == "HTTP":
+        return f"HTTP response {code} ({name}) observed at frame {frame}."
+    if protocol == "SIP":
+        reason = event.get("sip_reason")
+        suffix = f" {reason}" if reason else ""
+        return f"SIP response {code}{suffix} ({name}) observed at frame {frame}."
+    if protocol == "DHCP":
+        requested_ip = event.get("dhcp_requested_ip")
+        suffix = f" for requested IP {requested_ip}" if requested_ip else ""
+        return f"DHCP message {code} ({name}) observed{suffix} at frame {frame}."
     if protocol == "TCP" and str(code) == "RST":
         return f"TCP RST observed at frame {frame}."
     if protocol == "TCP" and str(code) == "retransmission":
@@ -108,6 +154,13 @@ def build_error_evidence(event: dict, protocol: str, code: object, name: str) ->
     if protocol == "TLS":
         return f"TLS alert {code} observed at frame {frame}."
     return f"{protocol} matched local rule {name} at frame {frame}."
+
+
+def parse_status_code(value: object) -> int | None:
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def filter_events(events: list[dict], settings: dict) -> list[dict]:
@@ -147,7 +200,7 @@ def build_procedure_groups(events: list[dict], procedures: list[dict], errors: l
         event
         for event in events
         if event.get("frame") not in grouped_frames
-        and event.get("protocol") in {"GTPv1-C", "GTPv2-C", "Diameter", "S1AP", "NGAP", "PFCP", "SIP"}
+        and event.get("protocol") in {"GTPv1-C", "GTPv2-C", "Diameter", "S1AP", "NGAP", "PFCP", "SIP", "DHCP"}
     ]
     if ungrouped_control_events:
         groups.append(

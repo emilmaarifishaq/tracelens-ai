@@ -67,6 +67,18 @@ procedure_groups:
     protocols:
       - SIP
 
+  - name: CPE Address Provisioning
+    technology: CPE
+    keywords:
+      - DHCP
+      - Discover
+      - Offer
+      - Request
+      - ACK
+      - NAK
+    protocols:
+      - DHCP
+
   - name: CPE Name Resolution
     technology: CPE
     keywords:
@@ -94,3 +106,15 @@ procedure_groups:
       - QUIC
       - MQTT
       - SSH
+
+  - name: Application Service Access
+    technology: Network
+    keywords:
+      - HTTP
+      - Response
+      - SIP Response
+      - TLS Alert
+    protocols:
+      - HTTP
+      - SIP
+      - TLS

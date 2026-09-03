@@ -91,11 +91,17 @@ def normalize_packet(packet: dict) -> dict:
     if "pfcp" in layers:
         event.update(normalize_pfcp(layers["pfcp"]))
 
+    if ("bootp" in layers or "dhcp" in layers) and "protocol" not in event:
+        event.update(normalize_dhcp(layers.get("bootp") or layers.get("dhcp") or {}))
+
     if "dns" in layers and "protocol" not in event:
         event.update(normalize_dns(layers["dns"]))
 
     if "http" in layers and "protocol" not in event:
         event.update(normalize_http(layers["http"]))
+
+    if "sip" in layers and "protocol" not in event:
+        event.update(normalize_sip(layers["sip"]))
 
     if "tls" in layers and "protocol" not in event:
         event.update(normalize_tls(layers["tls"]))
@@ -231,6 +237,63 @@ def normalize_http(http: dict) -> dict:
         "http_host": host,
         "http_uri": uri,
         "http_status_code": status_code,
+    }
+
+
+def normalize_sip(sip: dict) -> dict:
+    method = recursive_get(sip, "sip.Method")
+    request_uri = recursive_get(sip, "sip.Request-Line") or recursive_get(sip, "sip.r-uri")
+    status_code = recursive_get(sip, "sip.Status-Code") or recursive_get(sip, "sip.status-code")
+    reason = recursive_get(sip, "sip.Reason-Phrase") or recursive_get(sip, "sip.reason")
+    call_id = recursive_get(sip, "sip.Call-ID") or recursive_get(sip, "sip.call_id")
+
+    if status_code:
+        message = f"SIP Response {status_code}"
+        if reason:
+            message = f"{message} {reason}"
+    elif method:
+        message = f"SIP {method}"
+        if request_uri:
+            message = f"{message} {request_uri}"
+    else:
+        message = "SIP traffic"
+
+    return {
+        "protocol": "SIP",
+        "message": message,
+        "sip_method": method,
+        "sip_status_code": status_code,
+        "sip_reason": reason,
+        "sip_call_id": call_id,
+    }
+
+
+def normalize_dhcp(dhcp: dict) -> dict:
+    message_type = (
+        recursive_get(dhcp, "bootp.option.dhcp")
+        or recursive_get(dhcp, "bootp.option.dhcp_message_type")
+        or recursive_get(dhcp, "dhcp.option.dhcp")
+    )
+    client_ip = recursive_get(dhcp, "bootp.ip.client")
+    your_ip = recursive_get(dhcp, "bootp.ip.your")
+    server_ip = recursive_get(dhcp, "bootp.ip.server")
+    requested_ip = recursive_get(dhcp, "bootp.option.requested_ip_address")
+    hostname = recursive_get(dhcp, "bootp.option.hostname")
+    message = f"DHCP {dhcp_message_name(message_type)}"
+    if requested_ip:
+        message = f"{message} requested {requested_ip}"
+    elif your_ip and your_ip != "0.0.0.0":
+        message = f"{message} assigned {your_ip}"
+
+    return {
+        "protocol": "DHCP",
+        "message": message,
+        "dhcp_message_type": str(message_type) if message_type is not None else None,
+        "dhcp_client_ip": client_ip,
+        "dhcp_your_ip": your_ip,
+        "dhcp_server_ip": server_ip,
+        "dhcp_requested_ip": requested_ip,
+        "dhcp_hostname": hostname,
     }
 
 
@@ -426,6 +489,21 @@ def mqtt_message_name(value: object) -> str:
         12: "PINGREQ",
         13: "PINGRESP",
         14: "DISCONNECT",
+    }
+    return names.get(message_type, f"message {value}" if value is not None else "traffic")
+
+
+def dhcp_message_name(value: object) -> str:
+    message_type = parse_int(value)
+    names = {
+        1: "Discover",
+        2: "Offer",
+        3: "Request",
+        4: "Decline",
+        5: "ACK",
+        6: "NAK",
+        7: "Release",
+        8: "Inform",
     }
     return names.get(message_type, f"message {value}" if value is not None else "traffic")
 

@@ -640,6 +640,7 @@ function Ladder({
                 <span>
                   Frame {String(event.frame)} | {String(event.protocol || "-")}
                   {event.sequence_number ? ` | Seq ${String(event.sequence_number)}` : ""}
+                  {event.host ? ` | Host ${String(event.host)}` : ""}
                 </span>
               </span>
             </button>
@@ -678,11 +679,19 @@ function FrameDetails({
     ["Original frame", event.original_frame],
     ["Protocol", event.protocol || event.protocols],
     ["Message", event.message],
+    ["Host", event.host],
+    ["URL", event.url],
     ["TEID", event.teid],
     ["Sequence", event.sequence_number],
     ["Cause", event.cause_code],
     ["IMSI", event.imsi],
     ["APN", event.apn],
+    ["DNS query", event.dns_query],
+    ["HTTP host", event.http_host],
+    ["HTTP URI", event.http_uri],
+    ["TLS SNI", event.tls_sni],
+    ["SIP Call-ID", event.sip_call_id],
+    ["MQTT topic", event.mqtt_topic],
     ["Source", src ? `${src.label} (${event.src})` : event.src],
     ["Destination", dst ? `${dst.label} (${event.dst})` : event.dst],
   ].filter(([, value]) => value !== undefined && value !== null && value !== "");

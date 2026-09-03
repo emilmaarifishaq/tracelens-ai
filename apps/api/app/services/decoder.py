@@ -208,6 +208,7 @@ def normalize_dns(dns: dict) -> dict:
     return {
         "protocol": "DNS",
         "message": message,
+        "host": query_name,
         "dns_query": query_name,
         "dns_query_type": query_type,
         "dns_response_code": response_code,
@@ -221,9 +222,11 @@ def normalize_http(http: dict) -> dict:
     method = recursive_get(http, "http.request.method")
     host = recursive_get(http, "http.host")
     uri = recursive_get(http, "http.request.uri")
+    full_uri = recursive_get(http, "http.request.full_uri")
     status_code = recursive_get(http, "http.response.code")
+    url = normalize_url(host, uri, full_uri)
     if method:
-        target = f"{host or ''}{uri or ''}".strip() or "request"
+        target = url or f"{host or ''}{uri or ''}".strip() or "request"
         message = f"HTTP {method} {target}"
     elif status_code:
         message = f"HTTP Response {status_code}"
@@ -233,9 +236,12 @@ def normalize_http(http: dict) -> dict:
     return {
         "protocol": "HTTP",
         "message": message,
+        "host": host,
+        "url": url,
         "http_method": method,
         "http_host": host,
         "http_uri": uri,
+        "http_full_uri": full_uri,
         "http_status_code": status_code,
     }
 
@@ -246,6 +252,7 @@ def normalize_sip(sip: dict) -> dict:
     status_code = recursive_get(sip, "sip.Status-Code") or recursive_get(sip, "sip.status-code")
     reason = recursive_get(sip, "sip.Reason-Phrase") or recursive_get(sip, "sip.reason")
     call_id = recursive_get(sip, "sip.Call-ID") or recursive_get(sip, "sip.call_id")
+    host = sip_host(request_uri)
 
     if status_code:
         message = f"SIP Response {status_code}"
@@ -261,6 +268,8 @@ def normalize_sip(sip: dict) -> dict:
     return {
         "protocol": "SIP",
         "message": message,
+        "host": host,
+        "url": request_uri,
         "sip_method": method,
         "sip_status_code": status_code,
         "sip_reason": reason,
@@ -288,6 +297,7 @@ def normalize_dhcp(dhcp: dict) -> dict:
     return {
         "protocol": "DHCP",
         "message": message,
+        "host": hostname,
         "dhcp_message_type": str(message_type) if message_type is not None else None,
         "dhcp_client_ip": client_ip,
         "dhcp_your_ip": your_ip,
@@ -300,18 +310,26 @@ def normalize_dhcp(dhcp: dict) -> dict:
 def normalize_tls(tls: dict) -> dict:
     alert = recursive_get(tls, "tls.alert_message.desc") or recursive_get(tls, "tls.alert_message")
     handshake_type = recursive_get(tls, "tls.handshake.type")
+    sni = (
+        recursive_get(tls, "tls.handshake.extensions_server_name")
+        or recursive_get(tls, "tls.handshake.extensions_server_name_list")
+    )
     if alert:
         message = f"TLS Alert {alert}"
     elif handshake_type:
         message = f"TLS {tls_handshake_name(handshake_type)}"
+        if sni:
+            message = f"{message} {sni}"
     else:
         message = "TLS encrypted traffic"
 
     return {
         "protocol": "TLS",
         "message": message,
+        "host": sni,
         "tls_handshake_type": handshake_type,
         "tls_alert": alert,
+        "tls_sni": sni,
     }
 
 
@@ -324,6 +342,7 @@ def normalize_mqtt(mqtt: dict) -> dict:
     return {
         "protocol": "MQTT",
         "message": message,
+        "host": topic,
         "mqtt_message_type": message_type,
         "mqtt_topic": topic,
     }
@@ -332,14 +351,19 @@ def normalize_mqtt(mqtt: dict) -> dict:
 def normalize_quic(quic: dict) -> dict:
     packet_type = recursive_get(quic, "quic.long.packet_type") or recursive_get(quic, "quic.packet_type")
     version = recursive_get(quic, "quic.version")
+    sni = recursive_get(quic, "tls.handshake.extensions_server_name")
     message = "QUIC traffic"
     if packet_type:
         message = f"QUIC {packet_type}"
+    if sni:
+        message = f"{message} {sni}"
     return {
         "protocol": "QUIC",
         "message": message,
+        "host": sni,
         "quic_packet_type": packet_type,
         "quic_version": version,
+        "quic_sni": sni,
     }
 
 
@@ -378,6 +402,37 @@ def normalize_tcp(tcp: dict) -> dict:
         "tcp_stream": stream,
         "tcp_reset": recursive_get(tcp, "tcp.flags.reset") == "1",
     }
+
+
+def normalize_url(host: object, uri: object, full_uri: object) -> str | None:
+    if full_uri:
+        return str(full_uri)
+    if not host and not uri:
+        return None
+    if uri and str(uri).startswith(("http://", "https://")):
+        return str(uri)
+    if host and uri:
+        return f"http://{host}{uri}"
+    if host:
+        return str(host)
+    return str(uri)
+
+
+def sip_host(uri: object) -> str | None:
+    if not uri:
+        return None
+    value = str(uri)
+    if value.startswith("sip:"):
+        value = value[4:]
+    if value.startswith("sips:"):
+        value = value[5:]
+    if "@" in value:
+        value = value.split("@", 1)[1]
+    for separator in [";", "?", " "]:
+        value = value.split(separator, 1)[0]
+    if value.count(":") == 1:
+        value = value.split(":", 1)[0]
+    return value or None
 
 
 def recursive_get(value: object, key: str) -> object | None:

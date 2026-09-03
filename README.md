@@ -10,6 +10,7 @@ TraceLens AI turns uploaded PCAP/PCAPNG files into readable protocol flows, dete
 - Multiple PCAP upload and correlation
 - TShark-based packet decoding
 - Normalized event model
+- Host and URL extraction from DNS, HTTP, TLS SNI, SIP URI, MQTT topic, and QUIC SNI when present
 - GTPv2-C and Diameter starter extraction
 - Rule-based error detection
 - Local protocol knowledge library for error codes, likely root cause, recommended checks, and procedure grouping

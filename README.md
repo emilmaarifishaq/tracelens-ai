@@ -62,14 +62,16 @@ PCAP Upload
 
 ## Local Development
 
+For full setup instructions, see [Installation Guide](docs/installation.md).
+
 Requirements:
 
-- Docker
+- Docker, optional
 - TShark/Wireshark CLI for local decoder execution
 - Node.js 20+
 - Python 3.12+
 
-Start the API and supporting services:
+Optional Docker backend stack:
 
 ```bash
 docker compose up --build

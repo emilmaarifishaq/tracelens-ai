@@ -114,6 +114,13 @@ export default function Home() {
     () => visibleEvents.find((event) => String(event.frame) === selectedFrame) || null,
     [selectedFrame, visibleEvents],
   );
+  const ladderEvents = useMemo(() => {
+    const explicitFilter = protocolFilter !== "all" || errorsOnly || Boolean(searchText.trim());
+    if (explicitFilter) {
+      return visibleEvents.slice(0, 240);
+    }
+    return pickImportantLadderEvents(visibleEvents, errorFrames, 240);
+  }, [errorFrames, errorsOnly, protocolFilter, searchText, visibleEvents]);
 
   async function uploadTrace() {
     if (!files.length) return;
@@ -321,8 +328,11 @@ export default function Home() {
               </label>
             </div>
           </div>
+          <p className="ladderScope">
+            Showing {ladderEvents.length} important flow events from {visibleEvents.length} matching decoded events.
+          </p>
           <Ladder
-            events={visibleEvents}
+            events={ladderEvents}
             errorFrames={errorFrames}
             participants={participants}
             selectedFrame={selectedFrame}
@@ -645,7 +655,7 @@ function Ladder({
           </div>
         ))}
       </div>
-      {events.slice(0, 80).map((event) => {
+      {events.map((event) => {
         const failed = errorFrames.has(String(event.frame));
         const srcIndex = laneIndexes.get(String(event.src || "-")) ?? 0;
         const dstIndex = laneIndexes.get(String(event.dst || "-")) ?? srcIndex;
@@ -751,6 +761,62 @@ function FrameDetails({
 
 function asStringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function pickImportantLadderEvents(events: Array<Record<string, unknown>>, errorFrames: Set<string>, limit: number) {
+  return events
+    .map((event, index) => ({ event, index, score: ladderImportanceScore(event, errorFrames) }))
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score || frameNumber(left.event) - frameNumber(right.event) || left.index - right.index)
+    .slice(0, limit)
+    .sort((left, right) => frameNumber(left.event) - frameNumber(right.event) || left.index - right.index)
+    .map((item) => item.event);
+}
+
+function ladderImportanceScore(event: Record<string, unknown>, errorFrames: Set<string>) {
+  if (errorFrames.has(String(event.frame))) return 110;
+  if (event.redirect_url) return 100;
+  if (event.url) return 92;
+  if (event.cause_code || event.result_code || event.experimental_result_code) return 90;
+
+  const protocol = String(event.protocol || "");
+  const message = String(event.message || "");
+  const dnsCode = String(event.dns_response_code || "");
+  const httpCode = Number(event.http_status_code || 0);
+  const sipCode = Number(event.sip_status_code || 0);
+
+  if (protocol === "HTTP" && httpCode >= 300) return 96;
+  if (protocol === "SIP" && sipCode >= 300) return 94;
+  if (protocol === "DNS" && dnsCode && dnsCode !== "0") return 88;
+  if (protocol === "TCP" && event.tcp_reset) return 84;
+  if (protocol === "TLS" && event.tls_alert) return 82;
+
+  if (["GTPv1-C", "GTPv2-C", "GTP-U", "Diameter", "PFCP", "S1AP", "NGAP", "DHCP", "SIP"].includes(protocol)) {
+    return 72;
+  }
+  if (protocol === "DNS") {
+    return event.dns_response ? 58 : 0;
+  }
+  if (protocol === "HTTP") {
+    return event.http_method ? 68 : 0;
+  }
+  if (protocol === "TLS") {
+    return event.tls_sni ? 62 : 0;
+  }
+  if (protocol === "QUIC") {
+    return event.quic_sni ? 60 : 0;
+  }
+  if (protocol === "TCP") {
+    return event.is_retransmission ? 38 : 0;
+  }
+  if (protocol === "ICMP") {
+    return /unreachable|time exceeded/i.test(message) ? 56 : 0;
+  }
+  return 0;
+}
+
+function frameNumber(event: Record<string, unknown>) {
+  return Number(event.frame || 0);
 }
 
 function explanationModeLabel(analysis: AiAnalysis) {

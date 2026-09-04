@@ -134,6 +134,18 @@ def check_host_extraction() -> None:
             },
         )
     )
+    quic_event = normalize_packet(
+        packet(
+            15,
+            {
+                "udp": {"udp.srcport": "443", "udp.dstport": "12345"},
+                "quic": {
+                    "quic.long.packet_type": "Initial",
+                    "tls.handshake.extensions_server_name": "h3.example.net",
+                },
+            },
+        )
+    )
     sip_event = normalize_packet(
         packet(
             13,
@@ -152,6 +164,10 @@ def check_host_extraction() -> None:
     assert http_event["host"] == "example.com", "missing HTTP host"
     assert http_event["url"] == "http://example.com/health", "missing HTTP URL"
     assert tls_event["host"] == "acs.example.net", "missing TLS SNI host"
+    assert tls_event["url"] == "https://acs.example.net", "missing TLS inferred URL"
+    assert tls_event["url_inferred"] is True, "missing TLS inferred marker"
+    assert quic_event["url"] == "https://h3.example.net", "missing QUIC inferred URL"
+    assert quic_event["url_source"] == "quic_sni", "missing QUIC URL source"
     assert sip_event["host"] == "ims.example.org", "missing SIP host"
     print("PASS host extraction coverage")
 

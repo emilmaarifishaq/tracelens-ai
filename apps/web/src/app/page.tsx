@@ -724,6 +724,8 @@ function FrameDetails({
     ["Message", event.message],
     ["Host", event.host],
     ["URL", event.url],
+    ["URL source", event.url_source],
+    ["URL inferred", event.url_inferred],
     ["Redirect URL", event.redirect_url],
     ["TEID", event.teid],
     ["Sequence", event.sequence_number],

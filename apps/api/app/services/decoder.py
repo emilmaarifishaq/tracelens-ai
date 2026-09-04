@@ -394,6 +394,9 @@ def normalize_tls(tls: dict) -> dict:
         "protocol": "TLS",
         "message": message,
         "host": sni,
+        "url": inferred_https_url(sni),
+        "url_inferred": bool(sni),
+        "url_source": "tls_sni" if sni else None,
         "tls_handshake_type": handshake_type,
         "tls_alert": alert,
         "tls_sni": sni,
@@ -428,6 +431,9 @@ def normalize_quic(quic: dict) -> dict:
         "protocol": "QUIC",
         "message": message,
         "host": sni,
+        "url": inferred_https_url(sni),
+        "url_inferred": bool(sni),
+        "url_source": "quic_sni" if sni else None,
         "quic_packet_type": packet_type,
         "quic_version": version,
         "quic_sni": sni,
@@ -490,6 +496,12 @@ def host_from_url(value: object) -> str | None:
         return None
     parsed = urlparse(str(value))
     return parsed.netloc or None
+
+
+def inferred_https_url(host: object) -> str | None:
+    if not host:
+        return None
+    return f"https://{host}"
 
 
 def decode_tcp_text(tcp: dict) -> str | None:

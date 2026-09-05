@@ -134,6 +134,18 @@ def check_host_extraction() -> None:
             },
         )
     )
+    tls_server_hello = normalize_packet(
+        packet(
+            16,
+            {
+                "tcp": {"tcp.srcport": "443", "tcp.dstport": "12345"},
+                "tls": {
+                    "tls.handshake.type": "2",
+                    "tls.handshake.extensions_server_name": "should-not-be-used.example.net",
+                },
+            },
+        )
+    )
     quic_event = normalize_packet(
         packet(
             15,
@@ -166,6 +178,9 @@ def check_host_extraction() -> None:
     assert tls_event["host"] == "acs.example.net", "missing TLS SNI host"
     assert tls_event["url"] == "https://acs.example.net", "missing TLS inferred URL"
     assert tls_event["url_inferred"] is True, "missing TLS inferred marker"
+    assert tls_event["tls_client_hello"] is True, "missing TLS Client Hello marker"
+    assert tls_server_hello["tls_client_hello"] is False, "wrong TLS Client Hello marker"
+    assert tls_server_hello["host"] == "should-not-be-used.example.net", "missing TLS host outside Client Hello"
     assert quic_event["url"] == "https://h3.example.net", "missing QUIC inferred URL"
     assert quic_event["url_source"] == "quic_sni", "missing QUIC URL source"
     assert sip_event["host"] == "ims.example.org", "missing SIP host"

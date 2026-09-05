@@ -377,6 +377,7 @@ def normalize_dhcp(dhcp: dict) -> dict:
 def normalize_tls(tls: dict) -> dict:
     alert = recursive_get(tls, "tls.alert_message.desc") or recursive_get(tls, "tls.alert_message")
     handshake_type = recursive_get(tls, "tls.handshake.type")
+    is_client_hello = parse_int(handshake_type) == 1
     sni = (
         recursive_get(tls, "tls.handshake.extensions_server_name")
         or recursive_get(tls, "tls.handshake.extensions_server_name_list")
@@ -398,6 +399,7 @@ def normalize_tls(tls: dict) -> dict:
         "url_inferred": bool(sni),
         "url_source": "tls_sni" if sni else None,
         "tls_handshake_type": handshake_type,
+        "tls_client_hello": is_client_hello,
         "tls_alert": alert,
         "tls_sni": sni,
     }

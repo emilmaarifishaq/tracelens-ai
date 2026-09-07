@@ -30,6 +30,8 @@ type TraceResult = {
       participants?: Array<{ address: string; label: string }>;
       procedures?: Array<Record<string, unknown>>;
       procedure_groups?: Array<Record<string, unknown>>;
+      failure_timeline?: Array<Record<string, unknown>>;
+      host_flows?: Array<Record<string, unknown>>;
     };
   };
   settings?: {
@@ -79,6 +81,8 @@ export default function Home() {
   const participants = result?.ai_context.trace_summary?.participants || [];
   const procedures = result?.ai_context.trace_summary?.procedures || [];
   const procedureGroups = result?.ai_context.trace_summary?.procedure_groups || [];
+  const failureTimeline = result?.ai_context.trace_summary?.failure_timeline || [];
+  const hostFlows = result?.ai_context.trace_summary?.host_flows || [];
   const primaryError = result?.errors[0] || null;
   const visibleEvents = useMemo(() => {
     const events = result?.events || [];
@@ -298,6 +302,11 @@ export default function Home() {
           <ProcedureOverview groups={procedureGroups} procedures={procedures} />
         </section>
 
+        <section className="troubleshootingGrid">
+          <HostFlowSummary flows={hostFlows} onSelectFrame={setSelectedFrame} />
+          <FailureTimeline timeline={failureTimeline} onSelectFrame={setSelectedFrame} />
+        </section>
+
         <section className="panel ladderPanel">
           <div className="panelTitle">
             <h2>Flow Ladder</h2>
@@ -421,8 +430,8 @@ export default function Home() {
           </div>
 
           <div className="panel">
-          <div className="panelTitle">
-            <h2>Recent Events</h2>
+            <div className="panelTitle">
+              <h2>Recent Events</h2>
               <span>{visibleEvents.length ? `${visibleEvents.length} matching events` : "No matching events"}</span>
             </div>
             <div className="table">
@@ -453,6 +462,92 @@ export default function Home() {
         </section>
       </section>
     </main>
+  );
+}
+
+function HostFlowSummary({
+  flows,
+  onSelectFrame,
+}: {
+  flows: Array<Record<string, unknown>>;
+  onSelectFrame: (frame: string) => void;
+}) {
+  const visibleFlows = flows.slice(0, 8);
+
+  return (
+    <section className="panel troubleshootingPanel">
+      <div className="panelTitle">
+        <h2>Host Flow Summary</h2>
+        <span>{flows.length ? `${flows.length} observed targets` : "No host target yet"}</span>
+      </div>
+      <div className="compactList">
+        {visibleFlows.map((flow) => (
+          <button
+            className={`compactItem ${String(flow.status || "")}`}
+            key={`${flow.host}-${flow.protocol}-${flow.first_frame}`}
+            onClick={() => onSelectFrame(String(flow.first_frame))}
+          >
+            <strong>{String(flow.host || "-")}</strong>
+            <span>
+              {String(flow.protocol || "-")} | Frames {String(flow.first_frame || "-")} to {String(flow.last_frame || "-")} |{" "}
+              {String(flow.event_count || 0)} events
+            </span>
+            <small>
+              {String(flow.status || "observed")}
+              {flow.issue_count ? ` | ${String(flow.issue_count)} issues` : ""}
+              {flow.redirect_count ? ` | ${String(flow.redirect_count)} redirects` : ""}
+              {Array.isArray(flow.status_codes) && flow.status_codes.length ? ` | codes ${flow.status_codes.join(", ")}` : ""}
+            </small>
+            <small>
+              {Array.isArray(flow.sources) && flow.sources.length ? `src ${flow.sources.join(", ")}` : "src -"}
+              {" | "}
+              {Array.isArray(flow.destinations) && flow.destinations.length ? `dst ${flow.destinations.join(", ")}` : "dst -"}
+            </small>
+            {Array.isArray(flow.urls) && flow.urls.length ? <em>{String(flow.urls[0])}</em> : null}
+          </button>
+        ))}
+        {!visibleFlows.length && <p className="empty compactEmpty">No DNS, HTTP, TLS, SIP, MQTT, or QUIC host observed yet.</p>}
+      </div>
+    </section>
+  );
+}
+
+function FailureTimeline({
+  timeline,
+  onSelectFrame,
+}: {
+  timeline: Array<Record<string, unknown>>;
+  onSelectFrame: (frame: string) => void;
+}) {
+  const visibleItems = timeline.slice(0, 8);
+
+  return (
+    <section className="panel troubleshootingPanel">
+      <div className="panelTitle">
+        <h2>Failure Timeline</h2>
+        <span>{timeline.length ? `${timeline.length} notable events` : "No failure timeline yet"}</span>
+      </div>
+      <div className="compactList">
+        {visibleItems.map((item) => (
+          <button
+            className={`compactItem ${String(item.severity || "")}`}
+            key={`${item.frame}-${item.reason}`}
+            onClick={() => onSelectFrame(String(item.frame))}
+          >
+            <strong>
+              Frame {String(item.frame || "-")} | {String(item.reason || item.protocol || "-")}
+            </strong>
+            <span>{String(item.message || "-")}</span>
+            <small>
+              {String(item.src || "-")} to {String(item.dst || "-")}
+              {item.host ? ` | ${String(item.host)}` : ""}
+            </small>
+            {item.url ? <em>{String(item.url)}</em> : null}
+          </button>
+        ))}
+        {!visibleItems.length && <p className="empty compactEmpty">No redirect, protocol error, or explicit failure observed yet.</p>}
+      </div>
+    </section>
   );
 }
 

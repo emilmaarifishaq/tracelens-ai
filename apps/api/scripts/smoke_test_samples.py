@@ -85,7 +85,8 @@ def check_local_failure_rules() -> None:
     ]
     analysis = analyze_events(events)
     names = {error["error"] for error in analysis.errors}
-    group_names = {group["name"] for group in analysis.ai_context["trace_summary"]["procedure_groups"]}
+    summary = analysis.ai_context["trace_summary"]
+    group_names = {group["name"] for group in summary["procedure_groups"]}
 
     assert "DHCP NAK" in names, "missing DHCP NAK"
     assert "HTTP Service Unavailable" in names, "missing HTTP 503"
@@ -93,6 +94,7 @@ def check_local_failure_rules() -> None:
     assert "PFCP Session Context Not Found" in names, "missing PFCP cause 65"
     assert "CPE Address Provisioning" in group_names, "missing DHCP procedure group"
     assert "Application Service Access" in group_names, "missing application access group"
+    assert summary["failure_timeline"], "missing failure timeline"
     print("PASS local failure rule coverage")
 
 
@@ -212,6 +214,10 @@ def check_http_payload_redirect_extraction() -> None:
     assert event["http_status_code"] == "302", "missing HTTP status from TCP payload"
     assert event["host"] == "fwa-captive.starliteindonesia.com", "missing redirect host"
     assert event["redirect_url"] == "https://fwa-captive.starliteindonesia.com?bc=nokia", "missing redirect URL"
+    analysis = analyze_events([event])
+    flow = analysis.ai_context["trace_summary"]["host_flows"][0]
+    assert flow["status"] == "redirected", "HTTP 302 redirect should not be marked failed"
+    assert analysis.ai_context["trace_summary"]["failure_timeline"][0]["reason"] == "HTTP redirect", "missing redirect timeline"
     print("PASS HTTP payload redirect extraction")
 
 

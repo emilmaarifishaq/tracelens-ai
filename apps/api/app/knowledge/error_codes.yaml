@@ -270,6 +270,14 @@ http:
     recommended_checks:
       - Check URL path, host header, virtual host, and service routing.
       - Verify whether the CPE or client has the correct ACS/API endpoint.
+  "407":
+    name: HTTP Proxy Authentication Required
+    severity: warning
+    root_cause: A proxy or captive gateway requires authentication before allowing the request.
+    recommended_checks:
+      - Check captive portal login state, proxy policy, and subscriber/session authorization.
+      - Verify whether the client is expected to be redirected before internet access is granted.
+      - Correlate with DNS responses and HTTP redirect Location headers in the same flow.
   "408":
     name: HTTP Request Timeout
     severity: warning

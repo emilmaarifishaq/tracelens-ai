@@ -58,13 +58,19 @@ def build_rule_based_explanation(ai_context: dict, question: str = "") -> dict:
     summary = ai_context.get("trace_summary", {})
     errors = ai_context.get("detected_errors", [])
     procedures = summary.get("procedures", [])
+    timeline = summary.get("failure_timeline", [])
 
     if errors:
         first_error = errors[0]
-        evidence = [
-            str(error.get("evidence") or f"{error.get('protocol')} error at frame {error.get('frame')}")
-            for error in errors[:5]
-        ]
+        evidence = []
+        for item in timeline[:5]:
+            evidence_text = item.get("evidence")
+            if evidence_text and evidence_text not in evidence:
+                evidence.append(str(evidence_text))
+        for error in errors[:5]:
+            evidence_text = str(error.get("evidence") or f"{error.get('protocol')} error at frame {error.get('frame')}")
+            if evidence_text not in evidence:
+                evidence.append(evidence_text)
         actions = []
         for error in errors[:3]:
             for action in error.get("recommended_checks", []):
@@ -82,16 +88,43 @@ def build_rule_based_explanation(ai_context: dict, question: str = "") -> dict:
                 f"{f' with {duration} ms response time' if duration is not None else ''}."
             )
 
+        notable_text = ""
+        if timeline:
+            first_notable = timeline[0]
+            target = first_notable.get("url") or first_notable.get("host") or first_notable.get("message")
+            notable_text = (
+                f" First notable timeline event is {first_notable.get('reason')} at frame "
+                f"{first_notable.get('frame')}{f' for {target}' if target else ''}."
+            )
+
         return {
             "summary": (
                 f"TraceLens detected {len(errors)} explicit protocol {pluralize('issue', len(errors))}. "
                 f"The first issue is {first_error.get('error')} at frame {first_error.get('frame')}."
-                f"{procedure_text}"
+                f"{notable_text}{procedure_text}"
             ),
             "root_cause": first_error.get("root_cause") or "A protocol peer returned an explicit failure code.",
             "confidence": "high",
-            "evidence": evidence,
+            "evidence": evidence[:8],
             "recommended_actions": actions,
+            "question": question,
+        }
+
+    if timeline:
+        first_notable = timeline[0]
+        return {
+            "summary": (
+                f"TraceLens decoded {summary.get('event_count', 0)} events and found notable flow behavior. "
+                f"The first notable event is {first_notable.get('reason')} at frame {first_notable.get('frame')}."
+            ),
+            "root_cause": "No explicit supported failure code was found, but the timeline shows behavior that should be reviewed.",
+            "confidence": "medium",
+            "evidence": [str(item.get("evidence") or item.get("message")) for item in timeline[:8]],
+            "recommended_actions": [
+                "Review the first notable timeline frame and the surrounding ladder events.",
+                "Check the target host, redirect URL, status code, and DNS response for the same flow.",
+                "Confirm whether the observed redirect or encrypted HTTPS destination is expected for this access scenario.",
+            ],
             "question": question,
         }
 

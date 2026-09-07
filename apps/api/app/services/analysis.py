@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from app.models.trace import TraceAnalysis
 from app.services.knowledge import load_error_codes, load_procedure_rules
 
@@ -61,10 +63,13 @@ def analyze_events(
         if event.get("is_retransmission") and tcp_retransmission:
             errors.append(build_error(event, "TCP", "retransmission", tcp_retransmission))
 
+    errors = sorted(errors, key=error_sort_key)
     error_frames = {err.get("frame") for err in errors}
     participants = build_participants(events, endpoint_mapping)
     procedures = build_procedures(events, error_frames)
     procedure_groups = build_procedure_groups(events, procedures, errors)
+    failure_timeline = build_failure_timeline(events, errors)
+    host_flows = build_host_flows(events, errors)
 
     ai_context = {
         "trace_summary": {
@@ -74,6 +79,8 @@ def analyze_events(
             "participants": participants,
             "procedures": procedures,
             "procedure_groups": procedure_groups,
+            "failure_timeline": failure_timeline,
+            "host_flows": host_flows,
             "endpoint_mapping_count": len(endpoint_mapping),
         },
         "events": events,
@@ -154,6 +161,23 @@ def build_error_evidence(event: dict, protocol: str, code: object, name: str) ->
     if protocol == "TLS":
         return f"TLS alert {code} observed at frame {frame}."
     return f"{protocol} matched local rule {name} at frame {frame}."
+
+
+def error_sort_key(error: dict) -> tuple[int, int, int]:
+    severity_score = {"critical": 0, "warning": 1, "info": 2}.get(str(error.get("severity")), 3)
+    protocol_score = {
+        "GTPv2-C": 0,
+        "GTPv1-C": 0,
+        "Diameter": 1,
+        "PFCP": 2,
+        "HTTP": 3,
+        "SIP": 4,
+        "DNS": 5,
+        "DHCP": 6,
+        "TLS": 7,
+        "TCP": 8,
+    }.get(str(error.get("protocol")), 9)
+    return (severity_score, protocol_score, int(error.get("frame") or 0))
 
 
 def parse_status_code(value: object) -> int | None:
@@ -317,6 +341,179 @@ def build_participants(events: list[dict], endpoint_mapping: dict[str, dict[str,
         )
 
     return participants
+
+
+def build_failure_timeline(events: list[dict], errors: list[dict]) -> list[dict]:
+    errors_by_frame = {error.get("frame"): error for error in errors}
+    timeline = []
+
+    for event in events:
+        frame = event.get("frame")
+        error = errors_by_frame.get(frame)
+        reason = timeline_reason(event, error)
+        if not reason:
+            continue
+
+        timeline.append(
+            {
+                "frame": frame,
+                "time": event.get("time"),
+                "severity": error.get("severity") if error else inferred_severity(event),
+                "protocol": event.get("protocol"),
+                "message": event.get("message"),
+                "host": event.get("host"),
+                "url": event.get("redirect_url") or event.get("url"),
+                "src": event.get("src"),
+                "dst": event.get("dst"),
+                "reason": reason,
+                "evidence": error.get("evidence") if error else timeline_evidence(event, reason),
+                "score": timeline_score(event, error),
+            }
+        )
+
+    return [
+        {key: value for key, value in item.items() if key != "score"}
+        for item in sorted(
+            sorted(timeline, key=lambda item: item["score"], reverse=True)[:50],
+            key=lambda item: item.get("frame") or 0,
+        )
+    ]
+
+
+def build_host_flows(events: list[dict], errors: list[dict]) -> list[dict]:
+    error_frames = {error.get("frame") for error in errors}
+    flows: dict[tuple[str, str], dict] = {}
+
+    for event in events:
+        host = event_host(event)
+        if not host:
+            continue
+
+        key = (str(host), str(event.get("protocol") or "-"))
+        flow = flows.setdefault(
+            key,
+            {
+                "host": host,
+                "protocol": event.get("protocol"),
+                "sources": [],
+                "destinations": [],
+                "first_frame": event.get("frame"),
+                "last_frame": event.get("frame"),
+                "event_count": 0,
+                "issue_count": 0,
+                "redirect_count": 0,
+                "urls": [],
+                "status_codes": [],
+            },
+        )
+        flow["event_count"] += 1
+        flow["last_frame"] = event.get("frame")
+        if event.get("src") and event.get("src") not in flow["sources"]:
+            flow["sources"].append(event.get("src"))
+        if event.get("dst") and event.get("dst") not in flow["destinations"]:
+            flow["destinations"].append(event.get("dst"))
+
+        url = event.get("redirect_url") or event.get("url")
+        if url and url not in flow["urls"]:
+            flow["urls"].append(url)
+        status_code = event.get("http_status_code") or event.get("sip_status_code") or event.get("dns_response_code")
+        if status_code not in {None, "", "0"} and status_code not in flow["status_codes"]:
+            flow["status_codes"].append(status_code)
+        if event.get("redirect_url"):
+            flow["redirect_count"] += 1
+        if event.get("frame") in error_frames or inferred_severity(event) in {"warning", "critical"}:
+            flow["issue_count"] += 1
+
+    for flow in flows.values():
+        if flow["redirect_count"] and flow["issue_count"]:
+            flow["status"] = "redirected_with_issues"
+        elif flow["redirect_count"]:
+            flow["status"] = "redirected"
+        elif flow["issue_count"]:
+            flow["status"] = "failed"
+        else:
+            flow["status"] = "observed"
+        flow["urls"] = flow["urls"][:3]
+        flow["sources"] = flow["sources"][:3]
+        flow["destinations"] = flow["destinations"][:3]
+
+    return sorted(
+        flows.values(),
+        key=lambda flow: (
+            0 if flow["status"] in {"redirected", "redirected_with_issues"} else 1 if flow["status"] == "failed" else 2,
+            -(flow["issue_count"] + flow["redirect_count"]),
+            flow["first_frame"] or 0,
+        ),
+    )[:30]
+
+
+def event_host(event: dict) -> str | None:
+    host = event.get("host")
+    if host:
+        return str(host)
+    url = event.get("redirect_url") or event.get("url")
+    if url:
+        return urlparse(str(url)).netloc or str(url)
+    return None
+
+
+def timeline_reason(event: dict, error: dict | None) -> str | None:
+    if error:
+        return str(error.get("error") or "Protocol issue")
+    protocol = event.get("protocol")
+    if event.get("redirect_url"):
+        return "HTTP redirect"
+    if protocol == "HTTP" and parse_status_code(event.get("http_status_code")) and parse_status_code(event.get("http_status_code")) >= 300:
+        return "HTTP status"
+    if protocol == "SIP" and parse_status_code(event.get("sip_status_code")) and parse_status_code(event.get("sip_status_code")) >= 300:
+        return "SIP status"
+    if protocol in {"TLS", "QUIC"} and event.get("url_inferred"):
+        return "HTTPS host observed"
+    return None
+
+
+def timeline_evidence(event: dict, reason: str) -> str:
+    frame = event.get("frame")
+    if event.get("redirect_url"):
+        return f"Frame {frame} redirects to {event.get('redirect_url')}."
+    if event.get("url_inferred"):
+        return f"Frame {frame} shows {event.get('url')} from {event.get('url_source')}."
+    return f"Frame {frame} matched {reason}: {event.get('message')}."
+
+
+def timeline_score(event: dict, error: dict | None) -> int:
+    if error:
+        severity = error.get("severity")
+        return 100 if severity == "critical" else 90 if severity == "warning" else 70
+    if event.get("redirect_url"):
+        return 95
+    protocol = event.get("protocol")
+    if protocol == "HTTP" and parse_status_code(event.get("http_status_code")) and parse_status_code(event.get("http_status_code")) >= 400:
+        return 88
+    if protocol == "SIP" and parse_status_code(event.get("sip_status_code")) and parse_status_code(event.get("sip_status_code")) >= 300:
+        return 86
+    if protocol == "DNS" and str(event.get("dns_response_code") or "") not in {"", "0"}:
+        return 80
+    if protocol in {"TLS", "QUIC"} and event.get("url_inferred"):
+        return 55
+    return 40
+
+
+def inferred_severity(event: dict) -> str:
+    http_code = parse_status_code(event.get("http_status_code"))
+    sip_code = parse_status_code(event.get("sip_status_code"))
+    dns_code = str(event.get("dns_response_code") or "")
+    if http_code and http_code >= 500:
+        return "critical"
+    if sip_code and sip_code >= 500:
+        return "critical"
+    if (http_code and http_code >= 400) or (sip_code and sip_code >= 300):
+        return "warning"
+    if dns_code and dns_code != "0":
+        return "warning"
+    if event.get("tcp_reset") or event.get("tls_alert"):
+        return "warning"
+    return "info"
 
 
 def infer_participant_label(address: str, index: int) -> str:

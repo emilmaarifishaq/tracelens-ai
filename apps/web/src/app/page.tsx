@@ -55,6 +55,16 @@ type AiAnalysis = {
   ai_error?: string;
 };
 
+type HostSessionInsight = {
+  whatHappened: string;
+  likelyCause: string;
+  nextChecks: string[];
+  dnsIssues: number;
+  redirects: number;
+  httpErrors: number;
+  tcpIssues: number;
+};
+
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
   const [mappingFile, setMappingFile] = useState<File | null>(null);
@@ -66,6 +76,7 @@ export default function Home() {
   const [protocolFilter, setProtocolFilter] = useState("all");
   const [errorsOnly, setErrorsOnly] = useState(false);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
+  const [selectedHostFlow, setSelectedHostFlow] = useState<Record<string, unknown> | null>(null);
   const [searchText, setSearchText] = useState("");
   const [aiQuestion, setAiQuestion] = useState("Explain the failure and recommended troubleshooting steps.");
   const [maskIdentifiers, setMaskIdentifiers] = useState(true);
@@ -84,6 +95,14 @@ export default function Home() {
   const failureTimeline = result?.ai_context.trace_summary?.failure_timeline || [];
   const hostFlows = result?.ai_context.trace_summary?.host_flows || [];
   const primaryError = result?.errors[0] || null;
+  const selectedHostEvents = useMemo(
+    () => getHostSessionEvents(result?.events || [], selectedHostFlow),
+    [result, selectedHostFlow],
+  );
+  const selectedHostInsight = useMemo(
+    () => buildHostSessionInsight(selectedHostFlow, selectedHostEvents),
+    [selectedHostFlow, selectedHostEvents],
+  );
   const visibleEvents = useMemo(() => {
     const events = result?.events || [];
     const needle = searchText.trim().toLowerCase();
@@ -154,8 +173,11 @@ export default function Home() {
         throw new Error(await response.text());
       }
 
-      setResult(await response.json());
-      setSelectedFrame(null);
+      const decoded = (await response.json()) as TraceResult;
+      const initialHostFlow = decoded.ai_context.trace_summary?.host_flows?.[0] || null;
+      setResult(decoded);
+      setSelectedHostFlow(initialHostFlow);
+      setSelectedFrame(initialHostFlow?.first_frame ? String(initialHostFlow.first_frame) : null);
       setAiAnalysis(null);
       setStatus("idle");
     } catch {
@@ -303,9 +325,25 @@ export default function Home() {
         </section>
 
         <section className="troubleshootingGrid">
-          <HostFlowSummary flows={hostFlows} onSelectFrame={setSelectedFrame} />
+          <HostFlowSummary
+            flows={hostFlows}
+            selectedFlow={selectedHostFlow}
+            onSelectFlow={(flow) => {
+              setSelectedHostFlow(flow);
+              setSelectedFrame(flow.first_frame ? String(flow.first_frame) : null);
+              setSearchText(String(flow.host || firstString(flow.urls) || ""));
+            }}
+          />
           <FailureTimeline timeline={failureTimeline} onSelectFrame={setSelectedFrame} />
         </section>
+
+        <HostSessionDrilldown
+          flow={selectedHostFlow}
+          events={selectedHostEvents}
+          insight={selectedHostInsight}
+          errorFrames={errorFrames}
+          onSelectFrame={setSelectedFrame}
+        />
 
         <section className="panel ladderPanel">
           <div className="panelTitle">
@@ -467,10 +505,12 @@ export default function Home() {
 
 function HostFlowSummary({
   flows,
-  onSelectFrame,
+  selectedFlow,
+  onSelectFlow,
 }: {
   flows: Array<Record<string, unknown>>;
-  onSelectFrame: (frame: string) => void;
+  selectedFlow: Record<string, unknown> | null;
+  onSelectFlow: (flow: Record<string, unknown>) => void;
 }) {
   const visibleFlows = flows.slice(0, 8);
 
@@ -483,9 +523,11 @@ function HostFlowSummary({
       <div className="compactList">
         {visibleFlows.map((flow) => (
           <button
-            className={`compactItem ${String(flow.status || "")}`}
+            className={`compactItem ${String(flow.status || "")} ${
+              selectedFlow && sameHostFlow(flow, selectedFlow) ? "selected" : ""
+            }`}
             key={`${flow.host}-${flow.protocol}-${flow.first_frame}`}
-            onClick={() => onSelectFrame(String(flow.first_frame))}
+            onClick={() => onSelectFlow(flow)}
           >
             <strong>{String(flow.host || "-")}</strong>
             <span>
@@ -507,6 +549,84 @@ function HostFlowSummary({
           </button>
         ))}
         {!visibleFlows.length && <p className="empty compactEmpty">No DNS, HTTP, TLS, SIP, MQTT, or QUIC host observed yet.</p>}
+      </div>
+    </section>
+  );
+}
+
+function HostSessionDrilldown({
+  flow,
+  events,
+  insight,
+  errorFrames,
+  onSelectFrame,
+}: {
+  flow: Record<string, unknown> | null;
+  events: Array<Record<string, unknown>>;
+  insight: HostSessionInsight | null;
+  errorFrames: Set<string>;
+  onSelectFrame: (frame: string) => void;
+}) {
+  if (!flow || !insight) {
+    return (
+      <section className="panel drilldownPanel">
+        <div className="panelTitle">
+          <h2>Host Session Drilldown</h2>
+          <span>Select a host flow</span>
+        </div>
+        <p className="empty compactEmpty">Select a host from Host Flow Summary to inspect related DNS, HTTP, TLS, and TCP evidence.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel drilldownPanel">
+      <div className="panelTitle">
+        <h2>Host Session Drilldown</h2>
+        <span>
+          {String(flow.host || "-")} | {events.length} related events
+        </span>
+      </div>
+      <div className="drilldownGrid">
+        <article className="drilldownNarrative">
+          <h3>What Happened</h3>
+          <p>{insight.whatHappened}</p>
+          <h3>Likely Cause</h3>
+          <p>{insight.likelyCause}</p>
+          <h3>Next Check</h3>
+          <ul>
+            {insight.nextChecks.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </article>
+        <div className="drilldownFacts">
+          <Stat label="DNS issues" value={String(insight.dnsIssues)} />
+          <Stat label="Redirects" value={String(insight.redirects)} />
+          <Stat label="HTTP errors" value={String(insight.httpErrors)} />
+          <Stat label="TCP issues" value={String(insight.tcpIssues)} />
+        </div>
+      </div>
+      <div className="sessionEvents">
+        <div className="sessionHeader">
+          <span>Frame</span>
+          <span>Protocol</span>
+          <span>Evidence</span>
+          <span>Host / URL</span>
+        </div>
+        {events.slice(0, 24).map((event) => (
+          <button
+            className={`sessionRow ${errorFrames.has(String(event.frame)) ? "rowError" : ""}`}
+            key={`${event.frame}-${event.protocol}-${event.message}`}
+            onClick={() => onSelectFrame(String(event.frame))}
+          >
+            <span>{String(event.frame || "-")}</span>
+            <span>{String(event.protocol || event.protocols || "-")}</span>
+            <span>{sessionEvidence(event)}</span>
+            <span>{String(event.redirect_url || event.url || event.host || event.dns_query || "-")}</span>
+          </button>
+        ))}
+        {!events.length && <p className="empty compactEmpty">No matching session events found for this host.</p>}
       </div>
     </section>
   );
@@ -860,6 +980,188 @@ function asStringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+function firstString(value: unknown): string {
+  return Array.isArray(value) && typeof value[0] === "string" ? value[0] : "";
+}
+
+function sameHostFlow(left: Record<string, unknown>, right: Record<string, unknown>) {
+  return (
+    String(left.host || "") === String(right.host || "") &&
+    String(left.protocol || "") === String(right.protocol || "") &&
+    String(left.first_frame || "") === String(right.first_frame || "")
+  );
+}
+
+function getHostSessionEvents(events: Array<Record<string, unknown>>, flow: Record<string, unknown> | null) {
+  if (!flow) return [];
+  return events
+    .filter((event) => eventMatchesHostFlow(event, flow))
+    .sort((left, right) => frameNumber(left) - frameNumber(right))
+    .slice(0, 240);
+}
+
+function eventMatchesHostFlow(event: Record<string, unknown>, flow: Record<string, unknown>) {
+  const target = String(flow.host || "").toLowerCase();
+  const urls = asStringList(flow.urls).map((url) => url.toLowerCase());
+  const eventText = [
+    event.host,
+    event.url,
+    event.redirect_url,
+    event.http_host,
+    event.http_uri,
+    event.http_location,
+    event.dns_query,
+    event.tls_sni,
+    event.quic_sni,
+    event.sip_uri,
+  ]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
+  const compactEventText = eventText.trim();
+
+  const textualMatch =
+    Boolean(target && eventText.includes(target)) ||
+    urls.some((url) => Boolean(compactEventText) && (eventText.includes(url) || url.includes(compactEventText)));
+  if (textualMatch) return true;
+
+  const sources = asStringList(flow.sources);
+  const destinations = asStringList(flow.destinations);
+  const protocol = String(event.protocol || "");
+  const endpointMatch =
+    isAddressLike(target) &&
+    [...sources, ...destinations].some((address) => [event.src, event.dst].map(String).includes(address));
+  return endpointMatch && ["DNS", "HTTP", "TLS", "QUIC", "TCP"].includes(protocol);
+}
+
+function isAddressLike(value: string) {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(value) || value.includes(":");
+}
+
+function buildHostSessionInsight(
+  flow: Record<string, unknown> | null,
+  events: Array<Record<string, unknown>>,
+): HostSessionInsight | null {
+  if (!flow) return null;
+
+  const redirects = events.filter((event) => event.redirect_url).length;
+  const dnsIssues = events.filter((event) => {
+    const code = String(event.dns_response_code || "");
+    return String(event.protocol || "") === "DNS" && Boolean(code) && code !== "0";
+  }).length;
+  const httpErrors = events.filter((event) => {
+    const status = Number(event.http_status_code || 0);
+    return status >= 400;
+  }).length;
+  const tcpIssues = events.filter((event) => event.tcp_reset || event.is_retransmission).length;
+  const tlsIssues = events.filter((event) => event.tls_alert).length;
+  const httpsHosts = events.filter((event) => event.url_inferred).length;
+  const statusCodes = Array.from(
+    new Set(events.map((event) => event.http_status_code || event.dns_response_code).filter(Boolean).map(String)),
+  ).slice(0, 6);
+  const target = String(flow.host || "selected target");
+  const frameRange = `frames ${String(flow.first_frame || "-")} to ${String(flow.last_frame || "-")}`;
+
+  const whatHappened = [
+    `${target} was observed in ${events.length} related DNS/HTTP/TLS/TCP events across ${frameRange}.`,
+    redirects ? `${redirects} HTTP redirect response${redirects > 1 ? "s" : ""} pointed the client to a new URL.` : "",
+    httpErrors ? `${httpErrors} HTTP error response${httpErrors > 1 ? "s" : ""} appeared in the same session.` : "",
+    dnsIssues ? `${dnsIssues} DNS response issue${dnsIssues > 1 ? "s" : ""} appeared for this target or its related lookup.` : "",
+    tlsIssues ? `${tlsIssues} TLS alert${tlsIssues > 1 ? "s" : ""} appeared after the host was identified.` : "",
+    tcpIssues ? `${tcpIssues} TCP reset/retransmission event${tcpIssues > 1 ? "s" : ""} appeared in the path.` : "",
+    httpsHosts ? `${httpsHosts} encrypted HTTPS host observation${httpsHosts > 1 ? "s were" : " was"} inferred from TLS/QUIC fields.` : "",
+    statusCodes.length ? `Observed status/code values: ${statusCodes.join(", ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  let likelyCause = "TraceLens did not find an explicit failure for this host; review the surrounding packets for missing responses or unexpected routing.";
+  if (redirects && /captive|portal|login|walled/i.test(`${target} ${firstString(flow.urls)}`)) {
+    likelyCause = "The client traffic is being intercepted by a captive portal or walled-garden policy before normal internet access is allowed.";
+  } else if (redirects) {
+    likelyCause = "The server or gateway is intentionally redirecting the client, so the next troubleshooting point is the Location URL and policy that triggered it.";
+  } else if (httpErrors) {
+    likelyCause = "The target service or proxy returned an application-layer error, so the failure is likely above basic IP reachability.";
+  } else if (dnsIssues) {
+    likelyCause = "Name resolution failed or returned a non-success response before the application session could complete.";
+  } else if (tlsIssues) {
+    likelyCause = "The TCP path reached the encrypted service, but TLS negotiation reported an alert.";
+  } else if (tcpIssues) {
+    likelyCause = "The session shows transport instability, reset, or retransmission before a clean application exchange.";
+  }
+
+  const nextChecks = buildHostNextChecks({ redirects, dnsIssues, httpErrors, tcpIssues, tlsIssues, target });
+  return { whatHappened, likelyCause, nextChecks, dnsIssues, redirects, httpErrors, tcpIssues };
+}
+
+function buildHostNextChecks({
+  redirects,
+  dnsIssues,
+  httpErrors,
+  tcpIssues,
+  tlsIssues,
+  target,
+}: {
+  redirects: number;
+  dnsIssues: number;
+  httpErrors: number;
+  tcpIssues: number;
+  tlsIssues: number;
+  target: string;
+}) {
+  if (redirects) {
+    return [
+      `Open the first redirect frame and verify the Location URL for ${target}.`,
+      "Confirm whether captive portal, proxy, quota, or subscriber policy should redirect this client.",
+      "Compare DNS result, original Host header, and redirected host to confirm the access path.",
+    ];
+  }
+  if (dnsIssues) {
+    return [
+      `Check DNS server response code and queried name for ${target}.`,
+      "Verify client DNS configuration, resolver reachability, and split-DNS/captive policy.",
+      "Look for a later successful DNS answer before judging the application flow.",
+    ];
+  }
+  if (httpErrors) {
+    return [
+      `Review HTTP status, Host, URI, and response frame for ${target}.`,
+      "Check proxy, ACS/API endpoint, authentication, and service-side logs for the same timestamp.",
+      "Confirm whether the client should receive this status code in the tested scenario.",
+    ];
+  }
+  if (tlsIssues) {
+    return [
+      `Check TLS alert frame and SNI/ALPN information for ${target}.`,
+      "Verify certificate, TLS version, cipher compatibility, and middlebox inspection policy.",
+      "Correlate with TCP resets or retransmissions near the alert.",
+    ];
+  }
+  if (tcpIssues) {
+    return [
+      `Inspect TCP reset/retransmission frames around ${target}.`,
+      "Check packet loss, firewall resets, asymmetric routing, and MTU/MSS behavior.",
+      "Confirm whether the server responds after SYN and whether the session closes cleanly.",
+    ];
+  }
+  return [
+    `Review first and last frames for ${target}.`,
+    "Check whether DNS, TCP setup, TLS host, and application request all appear in order.",
+    "Use the host search filter to compare this target with a successful target in the same PCAP.",
+  ];
+}
+
+function sessionEvidence(event: Record<string, unknown>) {
+  const status = event.http_status_code || event.sip_status_code || event.dns_response_code;
+  const parts = [
+    event.message || event.protocols,
+    status ? `code ${String(status)}` : "",
+    event.tcp_reset ? "TCP reset" : "",
+    event.is_retransmission ? "retransmission" : "",
+    event.tls_alert ? `TLS alert ${String(event.tls_alert)}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" | ") : "-";
+}
+
 function pickImportantLadderEvents(events: Array<Record<string, unknown>>, errorFrames: Set<string>, limit: number) {
   return events
     .map((event, index) => ({ event, index, score: ladderImportanceScore(event, errorFrames) }))
@@ -979,6 +1281,15 @@ function maskDigits(value: string) {
   const digits = value.replace(/\D/g, "");
   if (digits.length <= 6) return "x".repeat(digits.length);
   return `${digits.slice(0, 5)}${"x".repeat(digits.length - 7)}${digits.slice(-2)}`;
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="miniStat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

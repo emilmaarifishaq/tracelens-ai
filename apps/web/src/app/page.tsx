@@ -32,6 +32,7 @@ type TraceResult = {
       procedure_groups?: Array<Record<string, unknown>>;
       failure_timeline?: Array<Record<string, unknown>>;
       host_flows?: Array<Record<string, unknown>>;
+      session_drilldowns?: Array<Record<string, unknown>>;
     };
   };
   settings?: {
@@ -94,14 +95,23 @@ export default function Home() {
   const procedureGroups = result?.ai_context.trace_summary?.procedure_groups || [];
   const failureTimeline = result?.ai_context.trace_summary?.failure_timeline || [];
   const hostFlows = result?.ai_context.trace_summary?.host_flows || [];
+  const sessionDrilldowns = result?.ai_context.trace_summary?.session_drilldowns || [];
   const primaryError = result?.errors[0] || null;
+  const selectedHostDrilldown = useMemo(
+    () => findSessionDrilldown(sessionDrilldowns, selectedHostFlow),
+    [sessionDrilldowns, selectedHostFlow],
+  );
   const selectedHostEvents = useMemo(
-    () => getHostSessionEvents(result?.events || [], selectedHostFlow),
-    [result, selectedHostFlow],
+    () => {
+      const drilldownEvents = selectedHostDrilldown?.events;
+      if (Array.isArray(drilldownEvents)) return drilldownEvents as Array<Record<string, unknown>>;
+      return getHostSessionEvents(result?.events || [], selectedHostFlow);
+    },
+    [result, selectedHostDrilldown, selectedHostFlow],
   );
   const selectedHostInsight = useMemo(
-    () => buildHostSessionInsight(selectedHostFlow, selectedHostEvents),
-    [selectedHostFlow, selectedHostEvents],
+    () => drilldownToHostSessionInsight(selectedHostDrilldown) || buildHostSessionInsight(selectedHostFlow, selectedHostEvents),
+    [selectedHostDrilldown, selectedHostEvents, selectedHostFlow],
   );
   const visibleEvents = useMemo(() => {
     const events = result?.events || [];
@@ -341,6 +351,7 @@ export default function Home() {
           flow={selectedHostFlow}
           events={selectedHostEvents}
           insight={selectedHostInsight}
+          eventTotal={Number(selectedHostDrilldown?.session_event_count || selectedHostEvents.length)}
           errorFrames={errorFrames}
           onSelectFrame={setSelectedFrame}
         />
@@ -558,12 +569,14 @@ function HostSessionDrilldown({
   flow,
   events,
   insight,
+  eventTotal,
   errorFrames,
   onSelectFrame,
 }: {
   flow: Record<string, unknown> | null;
   events: Array<Record<string, unknown>>;
   insight: HostSessionInsight | null;
+  eventTotal: number;
   errorFrames: Set<string>;
   onSelectFrame: (frame: string) => void;
 }) {
@@ -584,7 +597,7 @@ function HostSessionDrilldown({
       <div className="panelTitle">
         <h2>Host Session Drilldown</h2>
         <span>
-          {String(flow.host || "-")} | {events.length} related events
+          {String(flow.host || "-")} | {eventTotal} related events
         </span>
       </div>
       <div className="drilldownGrid">
@@ -1000,6 +1013,27 @@ function getHostSessionEvents(events: Array<Record<string, unknown>>, flow: Reco
     .slice(0, 240);
 }
 
+function findSessionDrilldown(
+  drilldowns: Array<Record<string, unknown>>,
+  flow: Record<string, unknown> | null,
+) {
+  if (!flow) return null;
+  return drilldowns.find((drilldown) => sameHostFlow(drilldown, flow)) || null;
+}
+
+function drilldownToHostSessionInsight(drilldown: Record<string, unknown> | null): HostSessionInsight | null {
+  if (!drilldown) return null;
+  return {
+    whatHappened: String(drilldown.what_happened || ""),
+    likelyCause: String(drilldown.likely_cause || ""),
+    nextChecks: asStringList(drilldown.next_checks),
+    dnsIssues: Number(drilldown.dns_issues || 0),
+    redirects: Number(drilldown.redirects || 0),
+    httpErrors: Number(drilldown.http_errors || 0),
+    tcpIssues: Number(drilldown.tcp_issues || 0),
+  };
+}
+
 function eventMatchesHostFlow(event: Record<string, unknown>, flow: Record<string, unknown>) {
   const target = String(flow.host || "").toLowerCase();
   const urls = asStringList(flow.urls).map((url) => url.toLowerCase());
@@ -1151,6 +1185,7 @@ function buildHostNextChecks({
 }
 
 function sessionEvidence(event: Record<string, unknown>) {
+  if (event.evidence) return String(event.evidence);
   const status = event.http_status_code || event.sip_status_code || event.dns_response_code;
   const parts = [
     event.message || event.protocols,

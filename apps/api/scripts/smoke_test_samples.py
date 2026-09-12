@@ -95,6 +95,7 @@ def check_local_failure_rules() -> None:
     assert "CPE Address Provisioning" in group_names, "missing DHCP procedure group"
     assert "Application Service Access" in group_names, "missing application access group"
     assert summary["failure_timeline"], "missing failure timeline"
+    assert "session_drilldowns" in summary, "missing session drilldowns"
     print("PASS local failure rule coverage")
 
 
@@ -216,8 +217,12 @@ def check_http_payload_redirect_extraction() -> None:
     assert event["redirect_url"] == "https://fwa-captive.starliteindonesia.com?bc=nokia", "missing redirect URL"
     analysis = analyze_events([event])
     flow = analysis.ai_context["trace_summary"]["host_flows"][0]
+    drilldown = analysis.ai_context["trace_summary"]["session_drilldowns"][0]
     assert flow["status"] == "redirected", "HTTP 302 redirect should not be marked failed"
     assert analysis.ai_context["trace_summary"]["failure_timeline"][0]["reason"] == "HTTP redirect", "missing redirect timeline"
+    assert drilldown["host"] == "fwa-captive.starliteindonesia.com", "missing captive host drilldown"
+    assert "captive portal" in drilldown["likely_cause"].lower(), "missing captive likely cause"
+    assert drilldown["events"][0]["frame"] == 14, "missing drilldown event evidence"
     print("PASS HTTP payload redirect extraction")
 
 

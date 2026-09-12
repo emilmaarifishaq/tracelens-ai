@@ -59,10 +59,15 @@ def build_rule_based_explanation(ai_context: dict, question: str = "") -> dict:
     errors = ai_context.get("detected_errors", [])
     procedures = summary.get("procedures", [])
     timeline = summary.get("failure_timeline", [])
+    drilldowns = summary.get("session_drilldowns", [])
+    first_drilldown = drilldowns[0] if drilldowns else {}
 
     if errors:
         first_error = errors[0]
         evidence = []
+        drilldown_evidence = first_drilldown.get("what_happened")
+        if drilldown_evidence:
+            evidence.append(str(drilldown_evidence))
         for item in timeline[:5]:
             evidence_text = item.get("evidence")
             if evidence_text and evidence_text not in evidence:
@@ -72,6 +77,9 @@ def build_rule_based_explanation(ai_context: dict, question: str = "") -> dict:
             if evidence_text not in evidence:
                 evidence.append(evidence_text)
         actions = []
+        for action in first_drilldown.get("next_checks", []):
+            if action not in actions:
+                actions.append(action)
         for error in errors[:3]:
             for action in error.get("recommended_checks", []):
                 if action not in actions:
@@ -112,19 +120,26 @@ def build_rule_based_explanation(ai_context: dict, question: str = "") -> dict:
 
     if timeline:
         first_notable = timeline[0]
+        likely_cause = first_drilldown.get("likely_cause") or (
+            "No explicit supported failure code was found, but the timeline shows behavior that should be reviewed."
+        )
+        actions = first_drilldown.get("next_checks") or [
+            "Review the first notable timeline frame and the surrounding ladder events.",
+            "Check the target host, redirect URL, status code, and DNS response for the same flow.",
+            "Confirm whether the observed redirect or encrypted HTTPS destination is expected for this access scenario.",
+        ]
+        evidence = [str(item.get("evidence") or item.get("message")) for item in timeline[:8]]
+        if first_drilldown.get("what_happened"):
+            evidence.insert(0, str(first_drilldown["what_happened"]))
         return {
             "summary": (
                 f"TraceLens decoded {summary.get('event_count', 0)} events and found notable flow behavior. "
                 f"The first notable event is {first_notable.get('reason')} at frame {first_notable.get('frame')}."
             ),
-            "root_cause": "No explicit supported failure code was found, but the timeline shows behavior that should be reviewed.",
+            "root_cause": likely_cause,
             "confidence": "medium",
-            "evidence": [str(item.get("evidence") or item.get("message")) for item in timeline[:8]],
-            "recommended_actions": [
-                "Review the first notable timeline frame and the surrounding ladder events.",
-                "Check the target host, redirect URL, status code, and DNS response for the same flow.",
-                "Confirm whether the observed redirect or encrypted HTTPS destination is expected for this access scenario.",
-            ],
+            "evidence": evidence[:8],
+            "recommended_actions": actions,
             "question": question,
         }
 

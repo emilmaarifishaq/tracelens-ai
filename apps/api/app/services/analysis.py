@@ -70,6 +70,7 @@ def analyze_events(
     procedure_groups = build_procedure_groups(events, procedures, errors)
     failure_timeline = build_failure_timeline(events, errors)
     host_flows = build_host_flows(events, errors)
+    session_drilldowns = build_session_drilldowns(events, host_flows)
 
     ai_context = {
         "trace_summary": {
@@ -81,6 +82,7 @@ def analyze_events(
             "procedure_groups": procedure_groups,
             "failure_timeline": failure_timeline,
             "host_flows": host_flows,
+            "session_drilldowns": session_drilldowns,
             "endpoint_mapping_count": len(endpoint_mapping),
         },
         "events": events,
@@ -445,6 +447,212 @@ def build_host_flows(events: list[dict], errors: list[dict]) -> list[dict]:
             flow["first_frame"] or 0,
         ),
     )[:30]
+
+
+def build_session_drilldowns(events: list[dict], host_flows: list[dict]) -> list[dict]:
+    drilldowns = []
+    for flow in host_flows[:20]:
+        matched_events = [
+            summarize_session_event(event)
+            for event in events
+            if event_matches_host_flow(event, flow)
+            and event.get("protocol") in {"DNS", "HTTP", "TLS", "QUIC", "TCP", "SIP", "MQTT"}
+        ]
+        drilldowns.append(
+            {
+                **flow,
+                **build_session_insight(flow, matched_events),
+                "events": matched_events[:80],
+                "session_event_count": len(matched_events),
+            }
+        )
+    return drilldowns
+
+
+def event_matches_host_flow(event: dict, flow: dict) -> bool:
+    target = str(flow.get("host") or "").lower()
+    urls = [str(url).lower() for url in flow.get("urls", []) if url]
+    event_values = [
+        event.get("host"),
+        event.get("url"),
+        event.get("redirect_url"),
+        event.get("http_host"),
+        event.get("http_uri"),
+        event.get("http_location"),
+        event.get("dns_query"),
+        event.get("tls_sni"),
+        event.get("quic_sni"),
+        event.get("sip_uri"),
+    ]
+    event_text = " ".join(str(value or "").lower() for value in event_values)
+    compact_event_text = event_text.strip()
+    if target and target in event_text:
+        return True
+    if compact_event_text and any(url in event_text or compact_event_text in url for url in urls):
+        return True
+
+    endpoint_pool = set(str(address) for address in flow.get("sources", []) + flow.get("destinations", []))
+    return is_address_like(target) and (str(event.get("src")) in endpoint_pool or str(event.get("dst")) in endpoint_pool)
+
+
+def summarize_session_event(event: dict) -> dict:
+    return {
+        "frame": event.get("frame"),
+        "time": event.get("time"),
+        "protocol": event.get("protocol"),
+        "message": event.get("message") or event.get("protocols"),
+        "src": event.get("src"),
+        "dst": event.get("dst"),
+        "host": event.get("host"),
+        "url": event.get("redirect_url") or event.get("url"),
+        "dns_query": event.get("dns_query"),
+        "http_status_code": event.get("http_status_code"),
+        "dns_response_code": event.get("dns_response_code"),
+        "tcp_reset": event.get("tcp_reset"),
+        "is_retransmission": event.get("is_retransmission"),
+        "tls_alert": event.get("tls_alert"),
+        "url_inferred": event.get("url_inferred"),
+        "evidence": session_event_evidence(event),
+    }
+
+
+def build_session_insight(flow: dict, events: list[dict]) -> dict:
+    redirects = sum(1 for event in events if 300 <= (parse_status_code(event.get("http_status_code")) or 0) < 400)
+    dns_issues = sum(
+        1
+        for event in events
+        if event.get("protocol") == "DNS" and str(event.get("dns_response_code") or "") not in {"", "0"}
+    )
+    http_errors = sum(1 for event in events if (parse_status_code(event.get("http_status_code")) or 0) >= 400)
+    tcp_issues = sum(1 for event in events if event.get("tcp_reset") or event.get("is_retransmission"))
+    tls_issues = sum(1 for event in events if event.get("tls_alert"))
+    https_hosts = sum(1 for event in events if event.get("url_inferred"))
+    status_codes = unique_values(
+        event.get("http_status_code") or event.get("dns_response_code") for event in events
+    )[:6]
+    target = str(flow.get("host") or "selected target")
+    first_frame = flow.get("first_frame") or "-"
+    last_frame = flow.get("last_frame") or "-"
+
+    what_happened = " ".join(
+        item
+        for item in [
+            f"{target} was observed in {len(events)} related DNS/HTTP/TLS/TCP events across frames {first_frame} to {last_frame}.",
+            f"{redirects} HTTP redirect response{'s' if redirects != 1 else ''} pointed the client to a new URL." if redirects else "",
+            f"{http_errors} HTTP error response{'s' if http_errors != 1 else ''} appeared in the same session." if http_errors else "",
+            f"{dns_issues} DNS response issue{'s' if dns_issues != 1 else ''} appeared for this target or its related lookup." if dns_issues else "",
+            f"{tls_issues} TLS alert{'s' if tls_issues != 1 else ''} appeared after the host was identified." if tls_issues else "",
+            f"{tcp_issues} TCP reset/retransmission event{'s' if tcp_issues != 1 else ''} appeared in the path." if tcp_issues else "",
+            f"{https_hosts} encrypted HTTPS host observation{'s were' if https_hosts != 1 else ' was'} inferred from TLS/QUIC fields." if https_hosts else "",
+            f"Observed status/code values: {', '.join(status_codes)}." if status_codes else "",
+        ]
+        if item
+    )
+
+    likely_cause = (
+        "TraceLens did not find an explicit failure for this host; review the surrounding packets for missing responses or unexpected routing."
+    )
+    if redirects and looks_like_captive_target(target, flow.get("urls", [])):
+        likely_cause = "The client traffic is being intercepted by a captive portal or walled-garden policy before normal internet access is allowed."
+    elif redirects:
+        likely_cause = "The server or gateway is intentionally redirecting the client, so the next troubleshooting point is the Location URL and policy that triggered it."
+    elif http_errors:
+        likely_cause = "The target service or proxy returned an application-layer error, so the failure is likely above basic IP reachability."
+    elif dns_issues:
+        likely_cause = "Name resolution failed or returned a non-success response before the application session could complete."
+    elif tls_issues:
+        likely_cause = "The TCP path reached the encrypted service, but TLS negotiation reported an alert."
+    elif tcp_issues:
+        likely_cause = "The session shows transport instability, reset, or retransmission before a clean application exchange."
+
+    return {
+        "what_happened": what_happened,
+        "likely_cause": likely_cause,
+        "next_checks": build_session_next_checks(target, redirects, dns_issues, http_errors, tcp_issues, tls_issues),
+        "dns_issues": dns_issues,
+        "redirects": redirects,
+        "http_errors": http_errors,
+        "tcp_issues": tcp_issues,
+        "tls_issues": tls_issues,
+        "https_hosts": https_hosts,
+        "session_status_codes": status_codes,
+    }
+
+
+def build_session_next_checks(
+    target: str,
+    redirects: int,
+    dns_issues: int,
+    http_errors: int,
+    tcp_issues: int,
+    tls_issues: int,
+) -> list[str]:
+    if redirects:
+        return [
+            f"Open the first redirect frame and verify the Location URL for {target}.",
+            "Confirm whether captive portal, proxy, quota, or subscriber policy should redirect this client.",
+            "Compare DNS result, original Host header, and redirected host to confirm the access path.",
+        ]
+    if dns_issues:
+        return [
+            f"Check DNS server response code and queried name for {target}.",
+            "Verify client DNS configuration, resolver reachability, and split-DNS/captive policy.",
+            "Look for a later successful DNS answer before judging the application flow.",
+        ]
+    if http_errors:
+        return [
+            f"Review HTTP status, Host, URI, and response frame for {target}.",
+            "Check proxy, ACS/API endpoint, authentication, and service-side logs for the same timestamp.",
+            "Confirm whether the client should receive this status code in the tested scenario.",
+        ]
+    if tls_issues:
+        return [
+            f"Check TLS alert frame and SNI/ALPN information for {target}.",
+            "Verify certificate, TLS version, cipher compatibility, and middlebox inspection policy.",
+            "Correlate with TCP resets or retransmissions near the alert.",
+        ]
+    if tcp_issues:
+        return [
+            f"Inspect TCP reset/retransmission frames around {target}.",
+            "Check packet loss, firewall resets, asymmetric routing, and MTU/MSS behavior.",
+            "Confirm whether the server responds after SYN and whether the session closes cleanly.",
+        ]
+    return [
+        f"Review first and last frames for {target}.",
+        "Check whether DNS, TCP setup, TLS host, and application request all appear in order.",
+        "Compare this target with a successful target in the same PCAP.",
+    ]
+
+
+def session_event_evidence(event: dict) -> str:
+    status = event.get("http_status_code") or event.get("dns_response_code")
+    parts = [
+        event.get("message") or event.get("protocols"),
+        f"code {status}" if status not in {None, ""} else "",
+        "TCP reset" if event.get("tcp_reset") else "",
+        "retransmission" if event.get("is_retransmission") else "",
+        f"TLS alert {event.get('tls_alert')}" if event.get("tls_alert") else "",
+    ]
+    return " | ".join(str(part) for part in parts if part) or "-"
+
+
+def unique_values(values: object) -> list[str]:
+    unique = []
+    for value in values:
+        if value not in {None, "", "0"} and str(value) not in unique:
+            unique.append(str(value))
+    return unique
+
+
+def is_address_like(value: str) -> bool:
+    if not value:
+        return False
+    return ":" in value or all(part.isdigit() and 0 <= int(part) <= 255 for part in value.split(".")) and value.count(".") == 3
+
+
+def looks_like_captive_target(target: str, urls: list[str]) -> bool:
+    haystack = " ".join([target, *(str(url) for url in urls)]).lower()
+    return any(keyword in haystack for keyword in ("captive", "portal", "login", "walled"))
 
 
 def event_host(event: dict) -> str | None:

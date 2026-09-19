@@ -132,12 +132,14 @@ export function SettingsPanel({
   const currentModels = modelOptions[provider] || [];
 
   const handleSave = () => {
-    if (provider !== "rule-engine" && !apiKey.trim()) {
+    const needsApiKey = !["rule-engine", "ollama"].includes(provider);
+    if (needsApiKey && !apiKey.trim()) {
       setStatus("error");
       return;
     }
 
-    if (provider !== "rule-engine" && !baseUrl.trim() && provider !== "openai" && provider !== "claude") {
+    const needsBaseUrl = ["azure", "ollama", "generic"].includes(provider);
+    if (needsBaseUrl && !baseUrl.trim()) {
       setStatus("error");
       return;
     }
@@ -159,8 +161,9 @@ export function SettingsPanel({
   };
 
   const hasApiKey = apiKey.trim().length > 0;
-  const isConfigured = provider === "rule-engine" || hasApiKey;
-  const requiresBaseUrl = !["openai", "claude", "rule-engine"].includes(provider);
+  const needsApiKey = !["rule-engine", "ollama"].includes(provider);
+  const isConfigured = provider === "rule-engine" || (needsApiKey ? hasApiKey : true);
+  const requiresBaseUrl = ["azure", "ollama", "generic"].includes(provider);
 
   return (
     <>
@@ -458,7 +461,7 @@ export function SettingsPanel({
               </button>
               <button
                 onClick={handleSave}
-                disabled={provider === "openai" && !hasApiKey}
+                disabled={needsApiKey && !hasApiKey}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   status === "saved"
                     ? "bg-green-500 text-white"
@@ -466,7 +469,7 @@ export function SettingsPanel({
                       ? "bg-red-500 text-white"
                       : "bg-blue-600 text-white hover:bg-blue-700"
                 } ${
-                  provider === "openai" && !hasApiKey
+                  needsApiKey && !hasApiKey
                     ? "opacity-50 cursor-not-allowed"
                     : ""
                 }`}

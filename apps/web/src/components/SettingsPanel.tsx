@@ -5,7 +5,7 @@ import { useState } from "react";
 
 interface AIProviderConfig {
   apiKey: string;
-  provider: "openai" | "rule-engine";
+  provider: "openai" | "claude" | "azure" | "ollama" | "generic" | "rule-engine";
   model: string;
   webSearchEnabled: boolean;
   baseUrl?: string;
@@ -17,6 +17,83 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
+function getApiKeyPlaceholder(provider: string): string {
+  switch (provider) {
+    case "openai":
+      return "sk-...";
+    case "claude":
+      return "sk-ant-...";
+    case "azure":
+      return "Your Azure API key";
+    case "ollama":
+      return "Not required for local Ollama";
+    case "generic":
+      return "Your API key";
+    default:
+      return "Enter API key";
+  }
+}
+
+function getApiKeyUrl(provider: string): string {
+  switch (provider) {
+    case "openai":
+      return "https://platform.openai.com/api-keys";
+    case "claude":
+      return "https://console.anthropic.com/";
+    case "azure":
+      return "https://portal.azure.com/";
+    case "ollama":
+      return "https://ollama.ai";
+    case "generic":
+      return "#";
+    default:
+      return "#";
+  }
+}
+
+function getModelHint(provider: string): string {
+  switch (provider) {
+    case "openai":
+      return "Recommended: gpt-4o for best quality";
+    case "claude":
+      return "Recommended: claude-3-5-sonnet for balance of speed and quality";
+    case "azure":
+      return "Use your deployed model names";
+    case "ollama":
+      return "Pull models with: ollama pull <model>";
+    case "generic":
+      return "Check your provider's documentation for available models";
+    default:
+      return "Select a model";
+  }
+}
+
+function getBaseUrlPlaceholder(provider: string): string {
+  switch (provider) {
+    case "azure":
+      return "https://<your-resource>.openai.azure.com/v1";
+    case "ollama":
+      return "http://localhost:11434/api/chat";
+    case "generic":
+      return "https://api.your-provider.com/v1/chat";
+    default:
+      return "";
+  }
+}
+
+function getBaseUrlHint(provider: string): string {
+  switch (provider) {
+    case "azure":
+      return "Use your Azure OpenAI endpoint (e.g., https://myresource.openai.azure.com/v1)";
+    case "ollama":
+      return "Default: http://localhost:11434/api/chat - ensure Ollama is running";
+    case "generic":
+      return "Your custom LLM API endpoint (e.g., Groq, Mistral, Replicate)";
+    default:
+      return "";
+  }
+}
+
 export function SettingsPanel({
   config,
   onConfigChange,
@@ -25,9 +102,9 @@ export function SettingsPanel({
   const [isOpen, setIsOpen] = useState(false);
   const [apiKey, setApiKey] = useState(config.apiKey);
   const [showApiKey, setShowApiKey] = useState(false);
-  const [provider, setProvider] = useState<"openai" | "rule-engine">(
-    config.provider
-  );
+  const [provider, setProvider] = useState<
+    "openai" | "claude" | "azure" | "ollama" | "generic" | "rule-engine"
+  >(config.provider);
   const [model, setModel] = useState(config.model);
   const [webSearchEnabled, setWebSearchEnabled] = useState(
     config.webSearchEnabled
@@ -35,8 +112,32 @@ export function SettingsPanel({
   const [baseUrl, setBaseUrl] = useState(config.baseUrl || "");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
 
+  const modelOptions: Record<string, string[]> = {
+    openai: [
+      "gpt-4o",
+      "gpt-4-turbo",
+      "gpt-4",
+      "gpt-3.5-turbo",
+    ],
+    claude: [
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229",
+      "claude-3-sonnet-20240229",
+    ],
+    azure: ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-35-turbo"],
+    ollama: ["llama2", "mistral", "neural-chat", "openhermes"],
+    generic: ["custom-model"],
+  };
+
+  const currentModels = modelOptions[provider] || [];
+
   const handleSave = () => {
-    if (provider === "openai" && !apiKey.trim()) {
+    if (provider !== "rule-engine" && !apiKey.trim()) {
+      setStatus("error");
+      return;
+    }
+
+    if (provider !== "rule-engine" && !baseUrl.trim() && provider !== "openai" && provider !== "claude") {
       setStatus("error");
       return;
     }
@@ -45,7 +146,7 @@ export function SettingsPanel({
       apiKey,
       provider,
       model,
-      webSearchEnabled,
+      webSearchEnabled: webSearchEnabled && provider === "openai",
       baseUrl: baseUrl || undefined,
     };
 
@@ -59,6 +160,7 @@ export function SettingsPanel({
 
   const hasApiKey = apiKey.trim().length > 0;
   const isConfigured = provider === "rule-engine" || hasApiKey;
+  const requiresBaseUrl = !["openai", "claude", "rule-engine"].includes(provider);
 
   return (
     <>
@@ -112,9 +214,9 @@ export function SettingsPanel({
             {/* Provider Selection */}
             <div>
               <label className="block text-sm font-semibold mb-2">
-                Analysis Mode
+                AI Provider
               </label>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-80 overflow-y-auto">
                 <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="radio"
@@ -125,9 +227,9 @@ export function SettingsPanel({
                     className="cursor-pointer"
                   />
                   <div>
-                    <div className="font-medium">Rule Engine (Offline)</div>
+                    <div className="font-medium text-sm">📚 Rule Engine</div>
                     <div className="text-xs text-gray-500">
-                      Local rules only, no API key needed
+                      Local analysis only, no API needed
                     </div>
                   </div>
                 </label>
@@ -142,17 +244,85 @@ export function SettingsPanel({
                     className="cursor-pointer"
                   />
                   <div>
-                    <div className="font-medium">OpenAI (AI-Assisted)</div>
+                    <div className="font-medium text-sm">🤖 OpenAI</div>
                     <div className="text-xs text-gray-500">
-                      Enhanced explanations with ChatGPT/Claude
+                      GPT-4o, GPT-4, GPT-3.5 | Supports web search
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <input
+                    type="radio"
+                    name="provider"
+                    value="claude"
+                    checked={provider === "claude"}
+                    onChange={() => setProvider("claude")}
+                    className="cursor-pointer"
+                  />
+                  <div>
+                    <div className="font-medium text-sm">🧠 Claude (Anthropic)</div>
+                    <div className="text-xs text-gray-500">
+                      Claude 3 Opus, Sonnet, Haiku | High quality
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <input
+                    type="radio"
+                    name="provider"
+                    value="azure"
+                    checked={provider === "azure"}
+                    onChange={() => setProvider("azure")}
+                    className="cursor-pointer"
+                  />
+                  <div>
+                    <div className="font-medium text-sm">☁️ Azure OpenAI</div>
+                    <div className="text-xs text-gray-500">
+                      Enterprise OpenAI | Custom endpoint required
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <input
+                    type="radio"
+                    name="provider"
+                    value="ollama"
+                    checked={provider === "ollama"}
+                    onChange={() => setProvider("ollama")}
+                    className="cursor-pointer"
+                  />
+                  <div>
+                    <div className="font-medium text-sm">🖥️ Ollama (Local)</div>
+                    <div className="text-xs text-gray-500">
+                      Self-hosted LLM | Privacy, offline, free
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <input
+                    type="radio"
+                    name="provider"
+                    value="generic"
+                    checked={provider === "generic"}
+                    onChange={() => setProvider("generic")}
+                    className="cursor-pointer"
+                  />
+                  <div>
+                    <div className="font-medium text-sm">🔧 Custom Endpoint</div>
+                    <div className="text-xs text-gray-500">
+                      Any LLM API | Groq, Mistral, Replicate, etc
                     </div>
                   </div>
                 </label>
               </div>
             </div>
 
-            {/* API Key Input (only for OpenAI) */}
-            {provider === "openai" && (
+            {/* API Key Input (all providers except rule-engine) */}
+            {provider !== "rule-engine" && (
               <>
                 <div>
                   <label className="block text-sm font-semibold mb-2">
@@ -165,7 +335,7 @@ export function SettingsPanel({
                     type={showApiKey ? "text" : "password"}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="sk-... (OpenAI API key)"
+                    placeholder={getApiKeyPlaceholder(provider)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-sm font-mono"
                   />
                   <button
@@ -182,12 +352,12 @@ export function SettingsPanel({
                     <p>
                       Get one:{" "}
                       <a
-                        href="https://platform.openai.com/api-keys"
+                        href={getApiKeyUrl(provider)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 dark:text-blue-400 hover:underline"
                       >
-                        OpenAI Platform
+                        {provider.charAt(0).toUpperCase() + provider.slice(1)} Platform
                       </a>
                     </p>
                   </div>
@@ -203,53 +373,56 @@ export function SettingsPanel({
                     onChange={(e) => setModel(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-sm"
                   >
-                    <option value="gpt-4o">GPT-4o (Recommended)</option>
-                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                    <option value="claude-3-sonnet-20240229">
-                      Claude 3 Sonnet
-                    </option>
-                    <option value="claude-3-opus-20240229">
-                      Claude 3 Opus
-                    </option>
+                    {currentModels.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
                   </select>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {getModelHint(provider)}
+                  </div>
                 </div>
 
-                {/* Web Search Toggle */}
-                <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <input
-                    type="checkbox"
-                    id="webSearch"
-                    checked={webSearchEnabled}
-                    onChange={(e) => setWebSearchEnabled(e.target.checked)}
-                    className="cursor-pointer"
-                  />
-                  <label htmlFor="webSearch" className="cursor-pointer flex-1">
-                    <div className="font-medium text-sm">Enable Web Search</div>
-                    <div className="text-xs text-gray-500">
-                      Let AI look up protocol specs online
-                    </div>
-                  </label>
-                </div>
+                {/* Web Search Toggle (OpenAI only) */}
+                {provider === "openai" && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <input
+                      type="checkbox"
+                      id="webSearch"
+                      checked={webSearchEnabled}
+                      onChange={(e) => setWebSearchEnabled(e.target.checked)}
+                      className="cursor-pointer"
+                    />
+                    <label htmlFor="webSearch" className="cursor-pointer flex-1">
+                      <div className="font-medium text-sm">Enable Web Search</div>
+                      <div className="text-xs text-gray-500">
+                        Let AI look up protocol specs online
+                      </div>
+                    </label>
+                  </div>
+                )}
 
                 {/* Base URL (Advanced) */}
                 <details className="text-sm">
                   <summary className="font-semibold cursor-pointer text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
                     ⚙️ Advanced Settings
                   </summary>
-                  <div className="mt-3 p-3 rounded bg-gray-50 dark:bg-gray-800">
-                    <label className="block text-xs font-medium mb-2">
-                      Base URL (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={baseUrl}
-                      onChange={(e) => setBaseUrl(e.target.value)}
-                      placeholder="https://api.openai.com/v1"
-                      className="w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs font-mono"
-                    />
-                    <div className="text-xs text-gray-500 mt-1">
-                      For custom or self-hosted endpoints
+                  <div className="mt-3 p-3 rounded bg-gray-50 dark:bg-gray-800 space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium mb-2">
+                        Base URL {requiresBaseUrl && <span className="text-red-500">*</span>}
+                      </label>
+                      <input
+                        type="text"
+                        value={baseUrl}
+                        onChange={(e) => setBaseUrl(e.target.value)}
+                        placeholder={getBaseUrlPlaceholder(provider)}
+                        className="w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs font-mono"
+                      />
+                      <div className="text-xs text-gray-500 mt-1">
+                        {getBaseUrlHint(provider)}
+                      </div>
                     </div>
                   </div>
                 </details>

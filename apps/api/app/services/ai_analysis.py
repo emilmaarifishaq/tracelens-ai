@@ -181,8 +181,11 @@ def load_ai_config() -> dict[str, Any]:
         provider = "openai" if api_key else "rule-engine"
 
     model = os.getenv("AI_MODEL") or os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
-    base_url = os.getenv("AI_BASE_URL") or OPENAI_API_URL
+    base_url = os.getenv("AI_BASE_URL")
     web_search_enabled = env_bool("AI_WEB_SEARCH_ENABLED", False)
+
+    if not base_url:
+        base_url = get_default_base_url(provider)
 
     return {
         "provider": provider,
@@ -193,25 +196,31 @@ def load_ai_config() -> dict[str, Any]:
     }
 
 
-def call_ai_provider(ai_context: dict, fallback: dict, question: str, config: dict[str, Any]) -> str:
-    payload = {
-        "model": config["model"],
-        "instructions": (
-            "You are a telecom packet-trace troubleshooting assistant. Explain only conclusions supported by "
-            "the supplied decoded trace evidence. Cite frame numbers. If evidence is insufficient, say so."
-        ),
-        "input": build_prompt(ai_context, fallback, question),
+def get_default_base_url(provider: str) -> str:
+    defaults = {
+        "openai": "https://api.openai.com/v1/chat/completions",
+        "claude": "https://api.anthropic.com/v1/messages",
+        "azure": "https://YOUR_RESOURCE.openai.azure.com/v1/chat/completions",
+        "ollama": "http://localhost:11434/api/generate",
+        "generic": "https://api.example.com/v1/chat/completions",
     }
-    if config["web_search_enabled"]:
-        payload["tools"] = [{"type": "web_search"}]
+    return defaults.get(provider, OPENAI_API_URL)
+
+
+def call_ai_provider(ai_context: dict, fallback: dict, question: str, config: dict[str, Any]) -> str:
+    provider = config["provider"]
+    prompt_text = build_prompt(ai_context, fallback, question)
+    system_prompt = (
+        "You are a telecom packet-trace troubleshooting assistant. Explain only conclusions supported by "
+        "the supplied decoded trace evidence. Cite frame numbers. If evidence is insufficient, say so."
+    )
+
+    payload, headers = build_provider_request(provider, config["model"], system_prompt, prompt_text, config)
 
     request = urllib.request.Request(
         config["base_url"],
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {config['api_key']}",
-            "Content-Type": "application/json",
-        },
+        headers=headers,
         method="POST",
     )
 
@@ -224,15 +233,94 @@ def call_ai_provider(ai_context: dict, fallback: dict, question: str, config: di
     except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError(f"AI provider request failed: {exc}") from exc
 
-    output_text = body.get("output_text")
-    if isinstance(output_text, str) and output_text.strip():
-        return output_text.strip()
+    return extract_provider_response(provider, body)
 
-    extracted = extract_response_text(body)
-    if extracted:
-        return extracted
 
-    raise RuntimeError("AI provider response did not contain text output")
+def build_provider_request(provider: str, model: str, system_prompt: str, prompt_text: str, config: dict[str, Any]) -> tuple[dict, dict]:
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    if provider == "openai":
+        headers["Authorization"] = f"Bearer {config['api_key']}"
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt_text},
+            ],
+            "temperature": 0.7,
+        }
+        if config.get("web_search_enabled"):
+            payload["tools"] = [{"type": "web_search"}]
+    elif provider == "claude":
+        headers["x-api-key"] = config["api_key"]
+        headers["anthropic-version"] = "2023-06-01"
+        payload = {
+            "model": model,
+            "max_tokens": 2048,
+            "system": system_prompt,
+            "messages": [
+                {"role": "user", "content": prompt_text},
+            ],
+        }
+    elif provider == "azure":
+        headers["api-key"] = config["api_key"]
+        payload = {
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt_text},
+            ],
+            "temperature": 0.7,
+        }
+    elif provider == "ollama":
+        payload = {
+            "model": model,
+            "prompt": f"{system_prompt}\n\n{prompt_text}",
+            "stream": False,
+        }
+    elif provider == "generic":
+        headers["Authorization"] = f"Bearer {config['api_key']}"
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt_text},
+            ],
+        }
+    else:
+        headers["Authorization"] = f"Bearer {config['api_key']}"
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt_text},
+            ],
+        }
+
+    return payload, headers
+
+
+def extract_provider_response(provider: str, body: dict) -> str:
+    if provider == "openai" or provider == "azure" or provider == "generic":
+        if "choices" in body and len(body["choices"]) > 0:
+            message = body["choices"][0].get("message", {})
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+    elif provider == "claude":
+        if "content" in body and len(body["content"]) > 0:
+            content_item = body["content"][0]
+            if content_item.get("type") == "text":
+                text = content_item.get("text")
+                if isinstance(text, str) and text.strip():
+                    return text.strip()
+    elif provider == "ollama":
+        response = body.get("response")
+        if isinstance(response, str) and response.strip():
+            return response.strip()
+
+    raise RuntimeError(f"AI provider {provider} response did not contain text output")
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -255,16 +343,6 @@ def build_prompt(ai_context: dict, fallback: dict, question: str) -> str:
         },
         indent=2,
     )
-
-
-def extract_response_text(body: dict) -> str:
-    parts = []
-    for item in body.get("output", []):
-        for content in item.get("content", []):
-            text = content.get("text")
-            if isinstance(text, str):
-                parts.append(text)
-    return "\n".join(parts).strip()
 
 
 def mask_context(value: Any) -> Any:

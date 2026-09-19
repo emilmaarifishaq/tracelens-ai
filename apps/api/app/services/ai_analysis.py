@@ -201,7 +201,7 @@ def get_default_base_url(provider: str) -> str:
         "openai": "https://api.openai.com/v1/chat/completions",
         "claude": "https://api.anthropic.com/v1/messages",
         "azure": "https://YOUR_RESOURCE.openai.azure.com/v1/chat/completions",
-        "ollama": "http://localhost:11434/api/generate",
+        "ollama": "http://localhost:11434/api/chat",
         "generic": "https://api.example.com/v1/chat/completions",
     }
     return defaults.get(provider, OPENAI_API_URL)
@@ -276,7 +276,10 @@ def build_provider_request(provider: str, model: str, system_prompt: str, prompt
     elif provider == "ollama":
         payload = {
             "model": model,
-            "prompt": f"{system_prompt}\n\n{prompt_text}",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt_text},
+            ],
             "stream": False,
         }
     elif provider == "generic":
@@ -316,9 +319,10 @@ def extract_provider_response(provider: str, body: dict) -> str:
                 if isinstance(text, str) and text.strip():
                     return text.strip()
     elif provider == "ollama":
-        response = body.get("response")
-        if isinstance(response, str) and response.strip():
-            return response.strip()
+        message = body.get("message", {})
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
 
     raise RuntimeError(f"AI provider {provider} response did not contain text output")
 

@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: tracelens-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://tracelens:tracelens@postgres:5432/tracelens
+      REDIS_URL: redis://redis:6379/0
+      UPLOAD_DIR: /data/uploads
+      DECODED_DIR: /data/decoded
+      AI_PROVIDER: ${AI_PROVIDER:-rule-engine}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-5}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1/responses}
+      AI_WEB_SEARCH_ENABLED: ${AI_WEB_SEARCH_ENABLED:-false}
+    volumes:
+      - trace_data:/data
+      - ./packages:/workspace/packages:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: tracelens-web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: tracelens-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-tracelens}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tracelens_secure_password_change_me}
+      POSTGRES_DB: ${DB_NAME:-tracelens}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracelens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: tracelens-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  trace_data:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: tracelens-network

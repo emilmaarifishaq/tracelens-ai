@@ -4,6 +4,18 @@ AI-powered trace analyzer for telecom and network protocol troubleshooting.
 
 TraceLens AI turns uploaded PCAP/PCAPNG files into readable protocol flows, detects errors with transparent rules, and prepares evidence-based context for AI analysis.
 
+## 🚀 Quick Start
+
+**New to TraceLens? Start here:** [QUICK_START.md](QUICK_START.md)
+
+One-command startup options:
+- **Mac/Linux:** `./start.sh` 
+- **Windows:** `powershell -ExecutionPolicy Bypass -File start.ps1`
+- **Docker:** `docker compose up --build`
+- **Make:** `make start` or `make docker-start`
+
+All options auto-configure everything and print URLs when ready.
+
 ## MVP Scope
 
 - PCAP upload API

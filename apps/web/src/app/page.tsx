@@ -19,6 +19,22 @@ import { useMemo, useState } from "react";
 import { ProtocolFilter } from "@/components/ProtocolFilter";
 import { SettingsPanel } from "@/components/SettingsPanel";
 
+interface ProtocolStats {
+  count: number;
+  first_frame: number;
+  last_frame: number;
+  error_count: number;
+  ports: string[];
+}
+
+interface AIProviderConfig {
+  apiKey: string;
+  provider: "openai" | "claude" | "azure" | "ollama" | "generic" | "rule-engine";
+  model: string;
+  webSearchEnabled: boolean;
+  baseUrl?: string;
+}
+
 type TraceResult = {
   trace_id: string;
   filename: string;
@@ -36,6 +52,7 @@ type TraceResult = {
       failure_timeline?: Array<Record<string, unknown>>;
       host_flows?: Array<Record<string, unknown>>;
       session_drilldowns?: Array<Record<string, unknown>>;
+      protocol_statistics?: Record<string, ProtocolStats>;
     };
   };
   settings?: {
@@ -87,12 +104,12 @@ export default function Home() {
   const [aiStatus, setAiStatus] = useState<"idle" | "analyzing" | "error">("idle");
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [chatGptStatus, setChatGptStatus] = useState<"idle" | "copied" | "error">("idle");
-  const [aiConfig, setAiConfig] = useState({
+  const [aiConfig, setAiConfig] = useState<AIProviderConfig>({
     apiKey: "",
-    provider: "rule-engine" as const,
+    provider: "rule-engine",
     model: "gpt-4o",
     webSearchEnabled: false,
-    baseUrl: undefined as string | undefined,
+    baseUrl: undefined,
   });
 
   const protocols = useMemo(
@@ -164,7 +181,7 @@ export default function Home() {
       return visibleEvents.slice(0, 240);
     }
     return pickImportantLadderEvents(visibleEvents, errorFrames, 240);
-  }, [errorFrames, errorsOnly, protocolFilter, searchText, visibleEvents]);
+  }, [errorFrames, errorsOnly, selectedProtocols, searchText, visibleEvents]);
 
   async function uploadTrace() {
     if (!files.length) return;
@@ -220,9 +237,10 @@ export default function Home() {
         body: JSON.stringify({
           ai_context: result.ai_context,
           question: aiQuestion,
-          use_ai: aiConfig.provider === "openai",
+          use_ai: aiConfig.provider !== "rule-engine",
           mask_identifiers: maskIdentifiers,
-          ...(aiConfig.provider === "openai" && {
+          provider: aiConfig.provider,
+          ...(aiConfig.provider !== "rule-engine" && {
             api_key: aiConfig.apiKey,
             model: aiConfig.model,
             web_search_enabled: aiConfig.webSearchEnabled,

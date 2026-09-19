@@ -47,25 +47,49 @@ check_command() {
     fi
 }
 
+suggest_install() {
+    local cmd=$1
+    local brew_pkg=$2
+    local apt_pkg=$3
+    local choc_pkg=$4
+
+    print_info "Installation help for $cmd:"
+
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        print_info "  macOS (Homebrew): brew install $brew_pkg"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        print_info "  Linux (apt): sudo apt-get install $apt_pkg"
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        print_info "  Windows (Chocolatey): choco install $choc_pkg"
+        print_info "  Or download from: https://$cmd.org"
+    fi
+}
+
 MISSING_DEPS=0
 
 if ! check_command "node" "--version"; then
-    print_warning "Node.js not found. Install from https://nodejs.org/"
+    print_warning "Node.js not found"
+    suggest_install "nodejs" "node@20" "nodejs npm" "nodejs"
     MISSING_DEPS=1
 fi
 
 if ! check_command "python3" "--version"; then
-    print_warning "Python 3 not found. Install from https://python.org/"
+    print_warning "Python 3 not found"
+    suggest_install "python" "python@3.12" "python3.12 python3-venv python3-pip" "python"
     MISSING_DEPS=1
 fi
 
 if ! check_command "tshark" "--version"; then
-    print_warning "TShark not found. Install Wireshark from https://wireshark.org/"
+    print_warning "TShark (Wireshark CLI) not found"
+    suggest_install "wireshark" "wireshark" "wireshark" "wireshark"
     MISSING_DEPS=1
 fi
 
 if [ $MISSING_DEPS -eq 1 ]; then
-    print_error "Please install missing dependencies and try again"
+    echo ""
+    print_error "Missing dependencies detected"
+    print_info "After installing dependencies above, run this script again"
+    echo ""
     exit 1
 fi
 

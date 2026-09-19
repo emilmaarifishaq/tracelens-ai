@@ -30,11 +30,32 @@ $missingDeps = $false
     } catch {
         Write-Error-Custom "$_ not found"
         $missingDeps = $true
+
+        # Suggest installation
+        Write-Info "Installation help:"
+        switch ($_) {
+            "node" {
+                Write-Info "  Option 1 - Chocolatey: choco install nodejs"
+                Write-Info "  Option 2 - Download: https://nodejs.org/download/"
+            }
+            "python" {
+                Write-Info "  Option 1 - Chocolatey: choco install python"
+                Write-Info "  Option 2 - Download: https://python.org/downloads"
+            }
+            "tshark" {
+                Write-Info "  Download Wireshark: https://wireshark.org/download"
+                Write-Info "  (Make sure TShark is selected during installation)"
+                Write-Info "  Then add to PATH: C:\Program Files\Wireshark"
+            }
+        }
     }
 }
 
 if ($missingDeps) {
-    Write-Error-Custom "Please install missing dependencies and try again"
+    Write-Host ""
+    Write-Error-Custom "Missing dependencies detected"
+    Write-Info "After installing dependencies above, run this script again"
+    Write-Host ""
     exit 1
 }
 

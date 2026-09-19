@@ -6,8 +6,8 @@ import urllib.request
 from typing import Any
 
 
-OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-DEFAULT_MODEL = "gpt-5"
+OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
+DEFAULT_MODEL = "gpt-4o"
 
 
 def explain_trace_context(
@@ -15,11 +15,25 @@ def explain_trace_context(
     question: str = "",
     use_ai: bool = True,
     mask_identifiers: bool = True,
+    api_key: str | None = None,
+    model: str | None = None,
+    web_search_enabled: bool | None = None,
+    base_url: str | None = None,
 ) -> dict:
     masked_context = mask_context(ai_context) if mask_identifiers else ai_context
     fallback = build_rule_based_explanation(masked_context, question)
 
     config = load_ai_config()
+
+    if api_key:
+        config["api_key"] = api_key
+    if model:
+        config["model"] = model
+    if web_search_enabled is not None:
+        config["web_search_enabled"] = web_search_enabled and config["provider"] == "openai"
+    if base_url:
+        config["base_url"] = base_url
+
     if not use_ai or config["provider"] == "rule-engine" or not config["api_key"]:
         return {
             **fallback,
@@ -167,7 +181,7 @@ def load_ai_config() -> dict[str, Any]:
         provider = "openai" if api_key else "rule-engine"
 
     model = os.getenv("AI_MODEL") or os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
-    base_url = os.getenv("AI_BASE_URL") or OPENAI_RESPONSES_URL
+    base_url = os.getenv("AI_BASE_URL") or OPENAI_API_URL
     web_search_enabled = env_bool("AI_WEB_SEARCH_ENABLED", False)
 
     return {

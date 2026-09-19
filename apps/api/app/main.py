@@ -98,6 +98,10 @@ def explain_trace(payload: dict) -> dict:
         question=str(payload.get("question") or ""),
         use_ai=bool(payload.get("use_ai", True)),
         mask_identifiers=bool(payload.get("mask_identifiers", True)),
+        api_key=payload.get("api_key"),
+        model=payload.get("model"),
+        web_search_enabled=payload.get("web_search_enabled"),
+        base_url=payload.get("base_url"),
     )
 
 

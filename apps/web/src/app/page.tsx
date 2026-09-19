@@ -17,6 +17,7 @@ import {
 import { useMemo, useState } from "react";
 
 import { ProtocolFilter } from "@/components/ProtocolFilter";
+import { SettingsPanel } from "@/components/SettingsPanel";
 
 type TraceResult = {
   trace_id: string;
@@ -86,6 +87,13 @@ export default function Home() {
   const [aiStatus, setAiStatus] = useState<"idle" | "analyzing" | "error">("idle");
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [chatGptStatus, setChatGptStatus] = useState<"idle" | "copied" | "error">("idle");
+  const [aiConfig, setAiConfig] = useState({
+    apiKey: "",
+    provider: "rule-engine" as const,
+    model: "gpt-4o",
+    webSearchEnabled: false,
+    baseUrl: undefined as string | undefined,
+  });
 
   const protocols = useMemo(
     () => result?.ai_context.trace_summary?.protocols?.join(", ") || "Waiting for trace",
@@ -212,8 +220,14 @@ export default function Home() {
         body: JSON.stringify({
           ai_context: result.ai_context,
           question: aiQuestion,
-          use_ai: true,
+          use_ai: aiConfig.provider === "openai",
           mask_identifiers: maskIdentifiers,
+          ...(aiConfig.provider === "openai" && {
+            api_key: aiConfig.apiKey,
+            model: aiConfig.model,
+            web_search_enabled: aiConfig.webSearchEnabled,
+            base_url: aiConfig.baseUrl,
+          }),
         }),
       });
 
@@ -270,10 +284,17 @@ export default function Home() {
             <h1>Trace Analyzer</h1>
             <p>Upload a PCAP to decode flows, detect failures, and prepare evidence for AI analysis.</p>
           </div>
-          <button className="primary" onClick={uploadTrace} disabled={!files.length || status === "uploading"}>
-            <FileUp size={18} />
-            {status === "uploading" ? "Decoding" : "Analyze"}
-          </button>
+          <div className="flex gap-2">
+            <SettingsPanel
+              config={aiConfig}
+              onConfigChange={setAiConfig}
+              onClose={() => {}}
+            />
+            <button className="primary" onClick={uploadTrace} disabled={!files.length || status === "uploading"}>
+              <FileUp size={18} />
+              {status === "uploading" ? "Decoding" : "Analyze"}
+            </button>
+          </div>
         </header>
 
         <section className="uploadPanel">

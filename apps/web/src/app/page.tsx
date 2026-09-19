@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { ProtocolFilter } from "@/components/ProtocolFilter";
+
 type TraceResult = {
   trace_id: string;
   filename: string;
@@ -74,7 +76,7 @@ export default function Home() {
   const [http2Ports, setHttp2Ports] = useState("29502,29503,29504,29507,29509,29518");
   const [showHeartbeats, setShowHeartbeats] = useState(false);
   const [hideDuplicatePfcp, setHideDuplicatePfcp] = useState(true);
-  const [protocolFilter, setProtocolFilter] = useState("all");
+  const [selectedProtocols, setSelectedProtocols] = useState<Set<string>>(new Set());
   const [errorsOnly, setErrorsOnly] = useState(false);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
   const [selectedHostFlow, setSelectedHostFlow] = useState<Record<string, unknown> | null>(null);
@@ -117,7 +119,7 @@ export default function Home() {
     const events = result?.events || [];
     const needle = searchText.trim().toLowerCase();
     return events.filter((event) => {
-      const matchesProtocol = protocolFilter === "all" || event.protocol === protocolFilter;
+      const matchesProtocol = selectedProtocols.size === 0 || selectedProtocols.has(String(event.protocol));
       const matchesError = !errorsOnly || errorFrames.has(String(event.frame));
       const matchesSearch =
         !needle ||
@@ -142,13 +144,14 @@ export default function Home() {
           .some((value) => String(value || "").toLowerCase().includes(needle));
       return matchesProtocol && matchesError && matchesSearch;
     });
-  }, [errorFrames, errorsOnly, protocolFilter, result, searchText]);
+  }, [errorFrames, errorsOnly, selectedProtocols, result, searchText]);
   const selectedEvent = useMemo(
     () => visibleEvents.find((event) => String(event.frame) === selectedFrame) || null,
     [selectedFrame, visibleEvents],
   );
+  const explicitFilter = selectedProtocols.size > 0 || errorsOnly || Boolean(searchText.trim());
+
   const ladderEvents = useMemo(() => {
-    const explicitFilter = protocolFilter !== "all" || errorsOnly || Boolean(searchText.trim());
     if (explicitFilter) {
       return visibleEvents.slice(0, 240);
     }
@@ -368,14 +371,27 @@ export default function Home() {
                   onChange={(event) => setSearchText(event.target.value)}
                 />
               </label>
-              <select value={protocolFilter} onChange={(event) => setProtocolFilter(event.target.value)}>
-                <option value="all">All protocols</option>
-                {(result?.ai_context.trace_summary?.protocols || []).map((protocol) => (
-                  <option value={protocol} key={protocol}>
-                    {protocol}
-                  </option>
-                ))}
-              </select>
+              <ProtocolFilter
+                protocols={result?.ai_context.trace_summary?.protocols || []}
+                protocolStats={result?.ai_context.trace_summary?.protocol_statistics}
+                selectedProtocols={selectedProtocols}
+                onProtocolChange={(protocol, selected) => {
+                  const newSelection = new Set(selectedProtocols);
+                  if (selected) {
+                    newSelection.add(protocol);
+                  } else {
+                    newSelection.delete(protocol);
+                  }
+                  setSelectedProtocols(newSelection);
+                }}
+                onSelectAll={() => {
+                  const allProtocols = result?.ai_context.trace_summary?.protocols || [];
+                  setSelectedProtocols(new Set(allProtocols));
+                }}
+                onClearAll={() => {
+                  setSelectedProtocols(new Set());
+                }}
+              />
               <label className="inlineCheck">
                 <input
                   type="checkbox"

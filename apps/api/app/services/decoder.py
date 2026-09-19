@@ -121,6 +121,42 @@ def normalize_packet(packet: dict) -> dict:
     if "ssh" in layers and "protocol" not in event:
         event.update({"protocol": "SSH", "message": "SSH traffic"})
 
+    if "ngap" in layers and "protocol" not in event:
+        event.update(normalize_ngap(layers["ngap"]))
+
+    if "s1ap" in layers and "protocol" not in event:
+        event.update(normalize_s1ap(layers["s1ap"]))
+
+    if "sctp" in layers and "protocol" not in event:
+        event.update(normalize_sctp(layers["sctp"]))
+
+    if "snmp" in layers and "protocol" not in event:
+        event.update(normalize_snmp(layers["snmp"]))
+
+    if "radius" in layers and "protocol" not in event:
+        event.update(normalize_radius(layers["radius"]))
+
+    if "ldap" in layers and "protocol" not in event:
+        event.update(normalize_ldap(layers["ldap"]))
+
+    if "ntp" in layers and "protocol" not in event:
+        event.update(normalize_ntp(layers["ntp"]))
+
+    if "smtp" in layers and "protocol" not in event:
+        event.update(normalize_smtp(layers["smtp"]))
+
+    if "pop" in layers and "protocol" not in event:
+        event.update(normalize_pop(layers["pop"]))
+
+    if "imap" in layers and "protocol" not in event:
+        event.update(normalize_imap(layers["imap"]))
+
+    if "bgp" in layers and "protocol" not in event:
+        event.update(normalize_bgp(layers["bgp"]))
+
+    if "ospf" in layers and "protocol" not in event:
+        event.update(normalize_ospf(layers["ospf"]))
+
     if "icmp" in layers and "protocol" not in event:
         event.update(normalize_icmp(layers["icmp"]))
 
@@ -736,3 +772,291 @@ def gtp_message_name(value: object) -> str | None:
         255: "G-PDU",
     }
     return names.get(message_type, str(value) if value is not None else None)
+
+
+# ========== Additional Protocol Normalizers ==========
+
+def normalize_ngap(ngap: dict) -> dict:
+    procedure_code = recursive_get(ngap, "ngap.ProcedureCode")
+    message_type = recursive_get(ngap, "ngap.messageType")
+    return {
+        "protocol": "NGAP",
+        "message": f"NGAP Procedure {procedure_code}" if procedure_code else "NGAP traffic",
+        "procedure_code": procedure_code,
+        "message_type": message_type,
+    }
+
+
+def normalize_s1ap(s1ap: dict) -> dict:
+    procedure_code = recursive_get(s1ap, "s1ap.ProcedureCode")
+    message_type = recursive_get(s1ap, "s1ap.messageType")
+    return {
+        "protocol": "S1AP",
+        "message": f"S1AP Procedure {procedure_code}" if procedure_code else "S1AP traffic",
+        "procedure_code": procedure_code,
+        "message_type": message_type,
+    }
+
+
+def normalize_sctp(sctp: dict) -> dict:
+    chunk_type = recursive_get(sctp, "sctp.chunk_type")
+    verification_tag = recursive_get(sctp, "sctp.verification_tag")
+    message = f"SCTP {sctp_chunk_name(chunk_type)}" if chunk_type else "SCTP traffic"
+    return {
+        "protocol": "SCTP",
+        "message": message,
+        "chunk_type": chunk_type,
+        "verification_tag": verification_tag,
+    }
+
+
+def normalize_snmp(snmp: dict) -> dict:
+    pdu_type = recursive_get(snmp, "snmp.pdutype")
+    community = recursive_get(snmp, "snmp.community")
+    oid = recursive_get(snmp, "snmp.oid")
+    message = f"SNMP {snmp_pdu_name(pdu_type)}"
+    if oid:
+        message = f"{message} {oid}"
+    return {
+        "protocol": "SNMP",
+        "message": message,
+        "pdu_type": pdu_type,
+        "community": community,
+        "oid": oid,
+    }
+
+
+def normalize_radius(radius: dict) -> dict:
+    code = recursive_get(radius, "radius.code")
+    identifier = recursive_get(radius, "radius.id")
+    username = recursive_get(radius, "radius.username")
+    message = f"RADIUS {radius_code_name(code)}"
+    if username:
+        message = f"{message} {username}"
+    return {
+        "protocol": "RADIUS",
+        "message": message,
+        "code": code,
+        "identifier": identifier,
+        "username": username,
+    }
+
+
+def normalize_ldap(ldap: dict) -> dict:
+    message_type = recursive_get(ldap, "ldap.messageType")
+    protocol_op = recursive_get(ldap, "ldap.protocolOp")
+    dn = recursive_get(ldap, "ldap.dn")
+    message = f"LDAP {ldap_message_name(message_type)}"
+    if dn:
+        message = f"{message} {dn}"
+    return {
+        "protocol": "LDAP",
+        "message": message,
+        "message_type": message_type,
+        "protocol_op": protocol_op,
+        "dn": dn,
+    }
+
+
+def normalize_ntp(ntp: dict) -> dict:
+    mode = recursive_get(ntp, "ntp.mode")
+    version = recursive_get(ntp, "ntp.version")
+    leap = recursive_get(ntp, "ntp.flags.leap")
+    message = f"NTP {ntp_mode_name(mode)}"
+    return {
+        "protocol": "NTP",
+        "message": message,
+        "mode": mode,
+        "version": version,
+        "leap": leap,
+    }
+
+
+def normalize_smtp(smtp: dict) -> dict:
+    command = recursive_get(smtp, "smtp.command")
+    response_code = recursive_get(smtp, "smtp.response_code")
+    message = f"SMTP {'Response' if response_code else 'Command'}"
+    if command:
+        message = f"{message} {command}"
+    if response_code:
+        message = f"{message} {response_code}"
+    return {
+        "protocol": "SMTP",
+        "message": message,
+        "command": command,
+        "response_code": response_code,
+    }
+
+
+def normalize_pop(pop: dict) -> dict:
+    command = recursive_get(pop, "pop.command")
+    response = recursive_get(pop, "pop.response")
+    message = f"POP {'Response' if response else 'Command'}"
+    if command:
+        message = f"{message} {command}"
+    return {
+        "protocol": "POP3",
+        "message": message,
+        "command": command,
+        "response": response,
+    }
+
+
+def normalize_imap(imap: dict) -> dict:
+    command = recursive_get(imap, "imap.command")
+    response = recursive_get(imap, "imap.response")
+    message = f"IMAP {'Response' if response else 'Command'}"
+    if command:
+        message = f"{message} {command}"
+    return {
+        "protocol": "IMAP",
+        "message": message,
+        "command": command,
+        "response": response,
+    }
+
+
+def normalize_bgp(bgp: dict) -> dict:
+    msg_type = recursive_get(bgp, "bgp.type")
+    marker = recursive_get(bgp, "bgp.marker")
+    return {
+        "protocol": "BGP",
+        "message": f"BGP {bgp_message_name(msg_type)}",
+        "message_type": msg_type,
+        "marker": marker,
+    }
+
+
+def normalize_ospf(ospf: dict) -> dict:
+    msg_type = recursive_get(ospf, "ospf.msg_type")
+    router_id = recursive_get(ospf, "ospf.routerid")
+    area_id = recursive_get(ospf, "ospf.areaid")
+    return {
+        "protocol": "OSPF",
+        "message": f"OSPF {ospf_message_name(msg_type)}",
+        "message_type": msg_type,
+        "router_id": router_id,
+        "area_id": area_id,
+    }
+
+
+# ========== Protocol Message Name Helpers ==========
+
+def sctp_chunk_name(value: object) -> str:
+    chunk_type = parse_int(value)
+    names = {
+        0: "DATA",
+        1: "INIT",
+        2: "INIT-ACK",
+        3: "SACK",
+        4: "HEARTBEAT",
+        5: "HEARTBEAT-ACK",
+        6: "ABORT",
+        7: "SHUTDOWN",
+        8: "SHUTDOWN-ACK",
+        9: "ERROR",
+        10: "COOKIE-ECHO",
+        11: "COOKIE-ACK",
+        12: "ECNE",
+        13: "CWR",
+        14: "SHUTDOWN-COMPLETE",
+    }
+    return names.get(chunk_type, f"chunk {value}" if value is not None else "traffic")
+
+
+def snmp_pdu_name(value: object) -> str:
+    pdu_type = parse_int(value)
+    names = {
+        0: "GetRequest",
+        1: "GetNextRequest",
+        2: "GetResponse",
+        3: "SetRequest",
+        4: "Trap",
+        5: "GetBulkRequest",
+        6: "InformRequest",
+        7: "SNMPv2-Trap",
+    }
+    return names.get(pdu_type, f"PDU {value}" if value is not None else "traffic")
+
+
+def radius_code_name(value: object) -> str:
+    code = parse_int(value)
+    names = {
+        1: "Access-Request",
+        2: "Access-Accept",
+        3: "Access-Reject",
+        4: "Accounting-Request",
+        5: "Accounting-Response",
+        11: "Access-Challenge",
+        40: "Disconnect-Request",
+        41: "Disconnect-ACK",
+        42: "Disconnect-NAK",
+        43: "CoA-Request",
+        44: "CoA-ACK",
+        45: "CoA-NAK",
+    }
+    return names.get(code, f"Code {value}" if value is not None else "traffic")
+
+
+def ldap_message_name(value: object) -> str:
+    msg_type = parse_int(value)
+    names = {
+        0: "BindRequest",
+        1: "BindResponse",
+        2: "UnbindRequest",
+        3: "SearchRequest",
+        4: "SearchResultEntry",
+        5: "SearchResultDone",
+        6: "ModifyRequest",
+        7: "ModifyResponse",
+        8: "AddRequest",
+        9: "AddResponse",
+        10: "DelRequest",
+        11: "DelResponse",
+        12: "ModDNRequest",
+        13: "ModDNResponse",
+        14: "ComparRequest",
+        15: "ComparResponse",
+        19: "SearchResultReference",
+        24: "ExtendedRequest",
+        25: "ExtendedResponse",
+    }
+    return names.get(msg_type, f"Message {value}" if value is not None else "traffic")
+
+
+def ntp_mode_name(value: object) -> str:
+    mode = parse_int(value)
+    names = {
+        1: "Symmetric Active",
+        2: "Symmetric Passive",
+        3: "Client",
+        4: "Server",
+        5: "Broadcast",
+        6: "Broadcast Client",
+        7: "Reserved",
+    }
+    return names.get(mode, f"Mode {value}" if value is not None else "traffic")
+
+
+def bgp_message_name(value: object) -> str:
+    msg_type = parse_int(value)
+    names = {
+        1: "OPEN",
+        2: "UPDATE",
+        3: "NOTIFICATION",
+        4: "KEEPALIVE",
+        5: "ROUTE-REFRESH",
+    }
+    return names.get(msg_type, f"Message {value}" if value is not None else "traffic")
+
+
+def ospf_message_name(value: object) -> str:
+    msg_type = parse_int(value)
+    names = {
+        1: "Hello",
+        2: "Database Description",
+        3: "Link State Request",
+        4: "Link State Update",
+        5: "Link State Acknowledgment",
+    }
+    return names.get(msg_type, f"Message {value}" if value is not None else "traffic")

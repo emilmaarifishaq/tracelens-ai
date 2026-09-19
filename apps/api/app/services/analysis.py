@@ -72,11 +72,15 @@ def analyze_events(
     host_flows = build_host_flows(events, errors)
     session_drilldowns = build_session_drilldowns(events, host_flows)
 
+    protocols_detected = {event.get("protocol") for event in events if event.get("protocol")}
+    protocol_stats = build_protocol_statistics(events)
+
     ai_context = {
         "trace_summary": {
             "event_count": len(events),
             "error_count": len(errors),
-            "protocols": sorted({event.get("protocol") for event in events if event.get("protocol")}),
+            "protocols": sorted(protocols_detected),
+            "protocol_statistics": protocol_stats,
             "participants": participants,
             "procedures": procedures,
             "procedure_groups": procedure_groups,
@@ -91,7 +95,7 @@ def analyze_events(
             event
             for event in events
             if event.get("protocol")
-            in {"GTPv1-C", "GTPv2-C", "GTP-U", "Diameter", "PFCP", "DNS", "DHCP", "HTTP", "SIP", "TLS", "MQTT", "QUIC", "TCP"}
+            in {"GTPv1-C", "GTPv2-C", "GTP-U", "Diameter", "PFCP", "DNS", "DHCP", "HTTP", "SIP", "TLS", "MQTT", "QUIC", "TCP", "NGAP", "S1AP", "SCTP", "SNMP", "RADIUS", "LDAP", "NTP", "SMTP", "POP3", "IMAP", "BGP", "OSPF"}
             or event.get("frame") in error_frames
         ][:100],
         "instruction": "Explain only what is supported by the provided frame evidence. Cite frame numbers.",
@@ -768,3 +772,42 @@ def duration_between(start: object, end: object) -> float | None:
         return round((float(end) - float(start)) * 1000, 3)
     except (TypeError, ValueError):
         return None
+
+
+def build_protocol_statistics(events: list[dict]) -> dict[str, dict]:
+    """Build statistics for each detected protocol."""
+    stats = {}
+    for event in events:
+        protocol = event.get("protocol")
+        if not protocol:
+            continue
+
+        if protocol not in stats:
+            stats[protocol] = {
+                "count": 0,
+                "first_frame": event.get("frame"),
+                "last_frame": event.get("frame"),
+                "error_count": 0,
+                "ports": set(),
+            }
+
+        stats[protocol]["count"] += 1
+        stats[protocol]["last_frame"] = event.get("frame")
+
+        src_port = event.get("src_port")
+        dst_port = event.get("dst_port")
+        if src_port:
+            stats[protocol]["ports"].add(str(src_port))
+        if dst_port:
+            stats[protocol]["ports"].add(str(dst_port))
+
+        if event.get("frame") in {err.get("frame") for err in events if err.get("is_error")}:
+            stats[protocol]["error_count"] += 1
+
+    return {
+        protocol: {
+            **data,
+            "ports": sorted(list(data["ports"])) if data["ports"] else [],
+        }
+        for protocol, data in sorted(stats.items())
+    }

@@ -1,0 +1,406 @@
+# TraceLens AI - Comprehensive Protocol Registry
+# Organized by category with decoder hints and typical ports
+
+protocols:
+  # ========== Telecom Signaling Protocols ==========
+  telecom:
+    - name: GTPv2-C
+      category: "4G/LTE Control"
+      ports: [2123]
+      description: "GTP control plane protocol for LTE session management"
+      layers: ["gtpv2"]
+      support: full
+      procedures: ["Session Establishment", "Bearer Modification", "Session Release"]
+      key_fields: ["cause_code", "teid", "message_type", "imsi", "apn"]
+      reference: "3GPP TS 29.274"
+      examples: ["Create Session Request", "Modify Bearer Response"]
+
+    - name: GTPv1-C
+      category: "3G Control"
+      ports: [2123]
+      description: "GTP control plane protocol for 3G session management"
+      layers: ["gtp"]
+      support: full
+      procedures: ["PDP Context Establishment", "Context Modification"]
+      key_fields: ["cause_code", "teid", "message_type", "imsi"]
+      reference: "3GPP TS 29.060"
+
+    - name: GTP-U
+      category: "Packet Data"
+      ports: [2152]
+      description: "GTP user plane protocol for data tunneling"
+      layers: ["gtp"]
+      support: partial
+      key_fields: ["teid", "sequence_number"]
+      reference: "3GPP TS 29.281"
+
+    - name: Diameter
+      category: "4G/5G Authentication"
+      ports: [3868, 3869]
+      description: "Authentication, Authorization, Accounting protocol (AAA)"
+      layers: ["diameter"]
+      support: full
+      procedures: ["Authentication", "Authorization", "Subscription Data Query"]
+      key_fields: ["result_code", "experimental_result_code", "session_id"]
+      reference: "RFC 6733"
+      applications: ["S6a", "Sh", "Gy", "Ro"]
+
+    - name: S1AP
+      category: "4G RAN Signaling"
+      ports: [36412]
+      description: "S1 Application Protocol - RAN to MME communication"
+      layers: ["s1ap"]
+      support: partial
+      procedures: ["Initial UE Message", "Context Setup", "Handover"]
+      reference: "3GPP TS 36.413"
+      transport: "SCTP"
+
+    - name: NGAP
+      category: "5G RAN Signaling"
+      ports: [38412]
+      description: "NG Application Protocol - gNodeB to AMF communication"
+      layers: ["ngap"]
+      support: partial
+      procedures: ["Initial UE Message", "PDU Session Establishment", "Handover"]
+      reference: "3GPP TS 38.413"
+      transport: "SCTP"
+
+    - name: PFCP
+      category: "5G/4G User Plane Control"
+      ports: [8805]
+      description: "Packet Forwarding Control Protocol - SMF to UPF communication"
+      layers: ["pfcp"]
+      support: full
+      procedures: ["Session Establishment", "Session Modification", "Session Deletion"]
+      key_fields: ["cause_code", "message_type", "seid"]
+      reference: "3GPP TS 29.244"
+
+    - name: 3GPP DIAMETER (S6a)
+      category: "HSS/UDM Interface"
+      ports: [3868]
+      description: "Diameter protocol on S6a interface for subscriber authentication"
+      layers: ["diameter"]
+      support: full
+      reference: "3GPP TS 29.272"
+
+    - name: Radius
+      category: "Legacy Authentication"
+      ports: [1812, 1813]
+      description: "Remote Authentication Dial In User Service (legacy AAA)"
+      layers: ["radius"]
+      support: partial
+      key_fields: ["code", "identifier", "attributes"]
+      reference: "RFC 2865"
+
+  # ========== Application Layer Protocols ==========
+  application:
+    - name: HTTP
+      category: "Web Protocol"
+      ports: [80, 8000, 8080, 8800]
+      description: "Hypertext Transfer Protocol - web communication"
+      layers: ["http"]
+      support: full
+      key_fields: ["method", "status_code", "host", "url"]
+      reference: "RFC 7230"
+      examples: ["GET /api/v1/trace", "200 OK", "302 Redirect"]
+
+    - name: HTTP/2
+      category: "Web Protocol"
+      ports: [443, 8443]
+      description: "HTTP version 2 - multiplexed web protocol"
+      layers: ["http2"]
+      support: full
+      key_fields: ["method", "status_code"]
+      reference: "RFC 7540"
+      note: "Supported via -d tcp.port==PORT,http2 option"
+
+    - name: HTTPS
+      category: "Secure Web"
+      ports: [443, 8443]
+      description: "HTTP over TLS/SSL"
+      layers: ["tls", "http"]
+      support: full
+      key_fields: ["sni", "certificate", "cipher"]
+      reference: "RFC 7230 + RFC 5246"
+
+    - name: DNS
+      category: "Name Resolution"
+      ports: [53]
+      description: "Domain Name System - hostname to IP resolution"
+      layers: ["dns"]
+      support: full
+      key_fields: ["query_name", "query_type", "response_code", "answer"]
+      reference: "RFC 1035"
+      examples: ["A Record Query", "NXDOMAIN Response"]
+
+    - name: SIP
+      category: "VoIP Signaling"
+      ports: [5060, 5061]
+      description: "Session Initiation Protocol - call setup and control"
+      layers: ["sip"]
+      support: full
+      procedures: ["REGISTER", "INVITE", "BYE"]
+      key_fields: ["method", "status_code", "call_id"]
+      reference: "RFC 3261"
+      related: ["RTP", "RTCP"]
+
+    - name: RTP
+      category: "VoIP Media"
+      ports: [dynamic]
+      description: "Real-time Transport Protocol - audio/video streaming"
+      layers: ["rtp"]
+      support: partial
+      key_fields: ["ssrc", "sequence_number", "payload_type"]
+      reference: "RFC 3550"
+
+    - name: MQTT
+      category: "IoT Messaging"
+      ports: [1883, 8883]
+      description: "Message Queuing Telemetry Transport - lightweight pub/sub"
+      layers: ["mqtt"]
+      support: full
+      key_fields: ["message_type", "topic", "qos"]
+      reference: "OASIS MQTT 3.1.1"
+      examples: ["CONNECT", "PUBLISH", "SUBSCRIBE"]
+
+    - name: QUIC
+      category: "Modern Protocol"
+      ports: [443, 80]
+      description: "Quick UDP Internet Connections - low-latency protocol"
+      layers: ["quic"]
+      support: full
+      key_fields: ["packet_type", "version", "sni"]
+      reference: "RFC 9000"
+
+    - name: SMTP
+      category: "Email Protocol"
+      ports: [25, 587, 465]
+      description: "Simple Mail Transfer Protocol - email transmission"
+      layers: ["smtp"]
+      support: partial
+      reference: "RFC 5321"
+
+    - name: POP3
+      category: "Email Protocol"
+      ports: [110, 995]
+      description: "Post Office Protocol 3 - email retrieval"
+      layers: ["pop"]
+      support: partial
+      reference: "RFC 1939"
+
+    - name: IMAP
+      category: "Email Protocol"
+      ports: [143, 993]
+      description: "Internet Message Access Protocol - email access"
+      layers: ["imap"]
+      support: partial
+      reference: "RFC 3501"
+
+  # ========== Transport Layer ==========
+  transport:
+    - name: TCP
+      category: "Reliable Transport"
+      ports: [multiple]
+      description: "Transmission Control Protocol - reliable ordered delivery"
+      layers: ["tcp"]
+      support: full
+      key_fields: ["flags", "sequence_number", "acknowledgment"]
+      reference: "RFC 793"
+      examples: ["SYN", "ACK", "FIN", "RST"]
+      anomalies: ["Retransmission", "Spurious Retransmission", "Out of Order"]
+
+    - name: UDP
+      category: "Unreliable Transport"
+      ports: [multiple]
+      description: "User Datagram Protocol - connectionless delivery"
+      layers: ["udp"]
+      support: full
+      key_fields: ["src_port", "dst_port", "length"]
+      reference: "RFC 768"
+
+    - name: SCTP
+      category: "Reliable Stream"
+      ports: [132, 36412, 38412]
+      description: "Stream Control Transmission Protocol - message-oriented"
+      layers: ["sctp"]
+      support: partial
+      key_fields: ["verification_tag", "checksum"]
+      reference: "RFC 4960"
+      usage: ["S1AP", "NGAP", "Diameter over SCTP"]
+
+    - name: DCCP
+      category: "Message-oriented"
+      ports: []
+      description: "Datagram Congestion Control Protocol"
+      layers: ["dccp"]
+      support: minimal
+      reference: "RFC 4340"
+
+  # ========== Network Layer ==========
+  network:
+    - name: IPv4
+      category: "Network Addressing"
+      ports: []
+      description: "Internet Protocol version 4 - routing and delivery"
+      layers: ["ip"]
+      support: full
+      key_fields: ["src", "dst", "ttl", "protocol"]
+      reference: "RFC 791"
+
+    - name: IPv6
+      category: "Network Addressing"
+      ports: []
+      description: "Internet Protocol version 6 - next-gen routing"
+      layers: ["ipv6"]
+      support: full
+      key_fields: ["src", "dst", "hop_limit"]
+      reference: "RFC 2460"
+
+    - name: ICMP
+      category: "Diagnostic"
+      ports: []
+      description: "Internet Control Message Protocol - diagnostics and errors"
+      layers: ["icmp"]
+      support: full
+      key_fields: ["type", "code"]
+      reference: "RFC 792"
+      examples: ["Echo Request (Ping)", "Destination Unreachable", "Time Exceeded"]
+
+    - name: ICMPv6
+      category: "Diagnostic"
+      ports: []
+      description: "ICMPv6 - diagnostic protocol for IPv6"
+      layers: ["icmpv6"]
+      support: full
+      reference: "RFC 4443"
+
+    - name: ARP
+      category: "Address Resolution"
+      ports: []
+      description: "Address Resolution Protocol - IP to MAC mapping"
+      layers: ["arp"]
+      support: full
+      key_fields: ["opcode", "src", "dst"]
+      reference: "RFC 826"
+      examples: ["Request", "Reply"]
+
+  # ========== Security Protocols ==========
+  security:
+    - name: TLS
+      category: "Encryption"
+      ports: [443, 8443, 3868, 3869]
+      description: "Transport Layer Security - encryption and authentication"
+      layers: ["tls"]
+      support: full
+      key_fields: ["handshake_type", "sni", "alert"]
+      reference: "RFC 5246 (TLS 1.2), RFC 8446 (TLS 1.3)"
+      examples: ["Client Hello", "Server Hello", "Certificate", "Alert"]
+      alerts: ["Decryption Failed", "Bad Certificate", "Handshake Failure"]
+
+    - name: DTLS
+      category: "Encryption"
+      ports: []
+      description: "Datagram TLS - encryption for UDP-based protocols"
+      layers: ["dtls"]
+      support: partial
+      reference: "RFC 6347"
+
+    - name: SSH
+      category: "Secure Shell"
+      ports: [22]
+      description: "Secure Shell - remote login and tunneling"
+      layers: ["ssh"]
+      support: partial
+      key_fields: ["version"]
+      reference: "RFC 4251"
+
+    - name: IPSec
+      category: "VPN"
+      ports: [500, 4500]
+      description: "IP Security Protocol - network-level encryption"
+      layers: ["ipsec"]
+      support: partial
+      components: ["IKE", "ESP", "AH"]
+      reference: "RFC 4301"
+
+  # ========== Legacy/Special Protocols ==========
+  legacy:
+    - name: DHCP
+      category: "Configuration"
+      ports: [67, 68]
+      description: "Dynamic Host Configuration Protocol - IP assignment"
+      layers: ["dhcp", "bootp"]
+      support: full
+      key_fields: ["message_type", "client_ip", "assigned_ip"]
+      reference: "RFC 2131"
+      examples: ["Discover", "Offer", "Request", "ACK"]
+
+    - name: NTP
+      category: "Time Synchronization"
+      ports: [123]
+      description: "Network Time Protocol - clock synchronization"
+      layers: ["ntp"]
+      support: partial
+      reference: "RFC 5905"
+
+    - name: SNMP
+      category: "Network Management"
+      ports: [161, 162]
+      description: "Simple Network Management Protocol - device monitoring"
+      layers: ["snmp"]
+      support: partial
+      reference: "RFC 3413"
+
+    - name: BGP
+      category: "Routing"
+      ports: [179]
+      description: "Border Gateway Protocol - inter-AS routing"
+      layers: ["bgp"]
+      support: partial
+      reference: "RFC 4271"
+
+    - name: OSPF
+      category: "Routing"
+      ports: []
+      description: "Open Shortest Path First - intra-AS routing"
+      layers: ["ospf"]
+      support: partial
+      reference: "RFC 2328"
+
+    - name: LDAP
+      category: "Directory"
+      ports: [389, 636]
+      description: "Lightweight Directory Access Protocol - directory service"
+      layers: ["ldap"]
+      support: partial
+      reference: "RFC 4511"
+
+support_levels:
+  full: "Complete decoding, filtering, and analysis"
+  partial: "Basic decoding, limited analysis"
+  minimal: "Layer detection only"
+
+# Protocol relationships and dependencies
+relationships:
+  gtp_v2_c_dependencies:
+    - Diameter (S6a)
+    - DNS
+    - TCP/UDP
+
+  5g_stack:
+    - NGAP (RAN)
+    - PFCP (User Plane Control)
+    - Diameter (Auth)
+    - SCTP (Transport)
+
+  voip_stack:
+    - SIP (Signaling)
+    - RTP (Media)
+    - RTCP (Control)
+    - TLS (Security)
+
+  web_stack:
+    - HTTP/HTTP2 (Application)
+    - TLS (Security)
+    - TCP (Transport)
+    - DNS (Resolution)

@@ -91,28 +91,78 @@ tshark --version
 
 **Option B: Native Windows PowerShell**
 
+#### Method 1: Using Chocolatey (Easiest)
+
+If you have Chocolatey installed, run in PowerShell (as Administrator):
+
 ```powershell
-# Install using Chocolatey (if installed)
-choco install python nodejs wireshark
+choco install python nodejs wireshark -y
 
-# Or download manually:
-# - Python 3.12: https://python.org/downloads
-# - Node.js: https://nodejs.org
-# - Wireshark: https://wireshark.org/download
-#   (Make sure TShark is selected in the installer)
-
-# Add Wireshark to PATH (if not automatic)
-[Environment]::SetEnvironmentVariable(
-  "Path",
-  "$env:Path;C:\Program Files\Wireshark",
-  "User"
-)
-
-# Verify in new PowerShell terminal
+# Verify installation
 python --version
 node --version
 tshark --version
 ```
+
+#### Method 2: Manual Download (Step-by-Step)
+
+**Step 1: Install Python 3.12**
+1. Download: https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe
+2. Run the installer
+3. ⚠️ **IMPORTANT**: Check "Add Python 3.12 to PATH" during installation
+4. Click "Install Now"
+5. Wait for completion
+6. Verify in new PowerShell window:
+   ```powershell
+   python --version
+   ```
+
+**Step 2: Install Node.js**
+1. Download: https://nodejs.org/dist/v22.9.0/node-v22.9.0-x64.msi
+2. Run the installer
+3. Click "Next" through the wizard
+4. Accept license agreement
+5. Keep default installation path
+6. Click "Install"
+7. Verify in new PowerShell window:
+   ```powershell
+   node --version
+   npm --version
+   ```
+
+**Step 3: Install Wireshark (includes TShark)**
+1. Download: https://www.wireshark.org/download/win64/Wireshark-latest-x64-installer.exe
+2. Run the installer
+3. Click "Next" to proceed
+4. **⚠️ IMPORTANT**: On "Choose Components" screen, ensure **TShark** is checked (✓)
+5. Keep default installation path: `C:\Program Files\Wireshark`
+6. Complete installation
+7. Add to PATH (PowerShell as Administrator):
+   ```powershell
+   [Environment]::SetEnvironmentVariable(
+     "Path",
+     "$env:Path;C:\Program Files\Wireshark",
+     "User"
+   )
+   ```
+8. **Close and reopen PowerShell** for PATH changes to take effect
+9. Verify in new PowerShell window:
+   ```powershell
+   tshark --version
+   ```
+
+#### Verify All Installations
+
+Open **new PowerShell window** and run:
+
+```powershell
+python --version      # Should show 3.12.x
+node --version        # Should show v20+ or v22+
+npm --version         # Should show npm version
+tshark --version      # Should show TShark version
+```
+
+If any command shows "not found", the PATH wasn't updated. Close all PowerShell windows, reopen as Administrator, and verify again.
 
 ### Docker (Alternative - No Dependencies Needed)
 

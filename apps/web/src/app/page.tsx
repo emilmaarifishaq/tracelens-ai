@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { ApiStatus } from "@/components/ApiStatus";
 import { ProtocolFilter } from "@/components/ProtocolFilter";
 import { SettingsPanel } from "@/components/SettingsPanel";
 
@@ -302,16 +303,24 @@ export default function Home() {
             <h1>Trace Analyzer</h1>
             <p>Upload a PCAP to decode flows, detect failures, and prepare evidence for AI analysis.</p>
           </div>
-          <div className="flex gap-2">
-            <SettingsPanel
-              config={aiConfig}
-              onConfigChange={setAiConfig}
-              onClose={() => {}}
+          <div className="flex flex-col items-end gap-3">
+            <ApiStatus
+              apiBaseUrl={
+                process.env.NEXT_PUBLIC_API_BASE_URL ||
+                `${typeof window !== "undefined" ? window.location.protocol : "http:"}//${typeof window !== "undefined" ? window.location.hostname : "localhost"}:8000`
+              }
             />
-            <button className="primary" onClick={uploadTrace} disabled={!files.length || status === "uploading"}>
-              <FileUp size={18} />
-              {status === "uploading" ? "Decoding" : "Analyze"}
-            </button>
+            <div className="flex gap-2">
+              <SettingsPanel
+                config={aiConfig}
+                onConfigChange={setAiConfig}
+                onClose={() => {}}
+              />
+              <button className="primary" onClick={uploadTrace} disabled={!files.length || status === "uploading"}>
+                <FileUp size={18} />
+                {status === "uploading" ? "Decoding" : "Analyze"}
+              </button>
+            </div>
           </div>
         </header>
 

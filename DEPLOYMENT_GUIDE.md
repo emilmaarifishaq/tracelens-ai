@@ -106,8 +106,10 @@ tshark --version
 
 #### Method 2: Manual Download (Step-by-Step)
 
-**Step 1: Install Python 3.12**
+**Step 1: Install Python 3.12 or 3.13**
 1. Download: https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe
+   - **⚠️ DO NOT use Python 3.14** - Dependencies don't support it yet
+   - Use Python 3.12 LTS or 3.13 only
 2. Run the installer
 3. ⚠️ **IMPORTANT**: Check "Add Python 3.12 to PATH" during installation
 4. Click "Install Now"
@@ -116,6 +118,7 @@ tshark --version
    ```powershell
    python --version
    ```
+   Should show `3.12.x` or `3.13.x` (NOT 3.14)
 
 **Step 2: Install Node.js**
 1. Download: https://nodejs.org/dist/v22.9.0/node-v22.9.0-x64.msi
@@ -484,6 +487,32 @@ netstat -ano | findstr :8000  # Windows
 # Kill process or use different port
 # For API, edit start.sh or use uvicorn --port 8001
 ```
+
+### Python Version Not Supported (pydantic-core error)
+
+**Error:** `the configured Python interpreter version (3.14) is newer than PyO3's maximum supported version (3.13)`
+
+**Cause:** You installed Python 3.14, but dependencies only support up to Python 3.13
+
+**Solution:**
+
+**Option 1: Use Python 3.13 (Recommended)**
+1. Uninstall Python 3.14
+2. Download and install Python 3.13: https://www.python.org/ftp/python/3.13.0/python-3.13.0-amd64.exe
+3. Make sure to check "Add Python 3.13 to PATH"
+4. Delete the `.venv` folder: `rm -rf apps/api/.venv`
+5. Create new virtual environment and reinstall:
+   ```bash
+   cd apps/api
+   python -m venv .venv
+   .venv\Scripts\activate  # Windows
+   pip install -r requirements.txt
+   ```
+
+**Option 2: Use Python 3.12 (Most Stable)**
+1. Uninstall Python 3.14
+2. Download and install Python 3.12: https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe
+3. Follow the same steps as Option 1
 
 ### Python Virtual Environment Issues
 

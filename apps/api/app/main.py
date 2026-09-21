@@ -23,6 +23,29 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/system/health")
+def system_health() -> dict[str, str | bool]:
+    import subprocess
+
+    tshark_available = False
+    try:
+        result = subprocess.run(
+            ["tshark", "--version"],
+            capture_output=True,
+            timeout=5,
+            check=False
+        )
+        tshark_available = result.returncode == 0
+    except Exception:
+        tshark_available = False
+
+    return {
+        "status": "ok",
+        "api": "ok",
+        "tshark_available": tshark_available
+    }
+
+
 @app.post("/traces")
 async def upload_trace(
     file: UploadFile | None = File(None),

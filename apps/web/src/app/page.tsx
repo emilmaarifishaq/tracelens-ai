@@ -1337,7 +1337,8 @@ function explanationModeLabel(analysis: AiAnalysis) {
 }
 
 function buildChatGptPrompt(result: TraceResult, question: string, maskIdentifiers: boolean) {
-  const context = maskIdentifiers ? maskTraceContext(result.ai_context) : result.ai_context;
+  const trimmedContext = trimAiContextForPrompt(result.ai_context);
+  const context = maskIdentifiers ? (maskTraceContext(trimmedContext) as Record<string, unknown>) : trimmedContext;
   return [
     "You are a telecom packet-trace troubleshooting assistant.",
     "Analyze the decoded TraceLens AI evidence below.",
@@ -1351,13 +1352,46 @@ function buildChatGptPrompt(result: TraceResult, question: string, maskIdentifie
       {
         filename: result.filename,
         event_count: result.event_count,
-        errors: result.errors,
         ai_context: context,
       },
       null,
       2,
     ),
   ].join("\n");
+}
+
+// The AI's job is to explain a failure the rule engine already detected (each
+// entry in detected_errors already carries its own root_cause and
+// recommended_checks), not to re-derive one from the whole trace structure.
+// result.ai_context.events is every decoded frame with no cap -- for a large
+// capture that alone is millions of tokens. Mirrors trim_ai_context_for_prompt
+// in apps/api/app/services/ai_analysis.py; keep both in sync.
+function trimAiContextForPrompt(aiContext: TraceResult["ai_context"]): Record<string, unknown> {
+  const traceSummary = aiContext.trace_summary || {};
+  const rawContext = aiContext as unknown as { detected_errors?: unknown[] };
+  const detectedErrors = Array.isArray(rawContext.detected_errors) ? rawContext.detected_errors.slice(0, 10) : [];
+
+  const minimal: Record<string, unknown> = {
+    event_count: traceSummary.event_count,
+    protocols_observed: traceSummary.protocols,
+    detected_errors: detectedErrors,
+  };
+
+  if (detectedErrors.length === 0) {
+    minimal.failure_timeline_sample = (traceSummary.failure_timeline || []).slice(0, 5);
+    const sessionDrilldowns = traceSummary.session_drilldowns || [];
+    if (sessionDrilldowns.length > 0) {
+      const topHost = sessionDrilldowns[0] as Record<string, unknown>;
+      minimal.most_active_host = {
+        host: topHost.host,
+        what_happened: topHost.what_happened,
+        likely_cause: topHost.likely_cause,
+        next_checks: topHost.next_checks,
+      };
+    }
+  }
+
+  return minimal;
 }
 
 function maskTraceContext(value: unknown): unknown {

@@ -33,6 +33,7 @@ def decode_pcap(path: Path, http2_ports: list[int] | None = None) -> DecodedTrac
         str(path),
         "-T",
         "json",
+        "--no-duplicate-keys",
     ]
     for port in http2_ports or []:
         command.extend(["-d", f"tcp.port=={port},http2"])
@@ -58,14 +59,26 @@ def decode_pcap(path: Path, http2_ports: list[int] | None = None) -> DecodedTrac
     return DecodedTrace(trace_id=uuid4().hex, events=[normalize_packet(packet) for packet in packets])
 
 
+def first_layer(value: object) -> dict:
+    """Some frames carry more than one instance of a layer (e.g. the inner and outer
+    IP header of a GTP-encapsulated packet). --no-duplicate-keys turns those into a
+    list instead of silently dropping all but one; take the first (outermost) one for
+    top-level frame identification."""
+    if isinstance(value, list):
+        return value[0] if value and isinstance(value[0], dict) else {}
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
 def normalize_packet(packet: dict) -> dict:
     source = packet.get("_source", {})
     layers = source.get("layers", {})
-    frame = layers.get("frame", {})
-    ip = layers.get("ip", {})
-    ipv6 = layers.get("ipv6", {})
-    tcp = layers.get("tcp", {})
-    udp = layers.get("udp", {})
+    frame = first_layer(layers.get("frame", {}))
+    ip = first_layer(layers.get("ip", {}))
+    ipv6 = first_layer(layers.get("ipv6", {}))
+    tcp = first_layer(layers.get("tcp", {}))
+    udp = first_layer(layers.get("udp", {}))
 
     protocols = frame.get("frame.protocols", "")
     event = {
@@ -214,7 +227,7 @@ def normalize_gtpv1(gtp: dict) -> dict:
 def normalize_diameter(diameter: dict) -> dict:
     return {
         "protocol": "Diameter",
-        "message": recursive_get(diameter, "diameter.cmd_code"),
+        "message": recursive_get(diameter, "diameter.cmd.code"),
         "session_id": recursive_get(diameter, "diameter.Session-Id"),
         "result_code": recursive_get(diameter, "diameter.Result-Code"),
         "experimental_result_code": recursive_get(diameter, "diameter.Experimental-Result-Code"),

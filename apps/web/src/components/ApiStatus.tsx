@@ -27,6 +27,7 @@ export function ApiStatus({ apiBaseUrl }: ApiStatusProps) {
         const response = await fetch(`${url}/system/health`, {
           method: "GET",
           cache: "no-store",
+          signal: AbortSignal.timeout(5000),
         });
 
         if (response.ok) {

@@ -502,7 +502,7 @@ export default function Home() {
             </label>
             <button className="primary" onClick={explainTrace} disabled={!result || aiStatus === "analyzing"}>
               <Brain size={18} />
-              {aiStatus === "analyzing" ? "Explaining" : "Explain Locally"}
+              {aiStatus === "analyzing" ? "Explaining" : getExplainButtonLabel(aiConfig.provider)}
             </button>
           </div>
           <div className="chatGptHandoff">
@@ -1334,6 +1334,27 @@ function explanationModeLabel(analysis: AiAnalysis) {
     return `${analysis.provider} | ${analysis.mode}`;
   }
   return "TraceLens rule-engine | offline";
+}
+
+function getExplainButtonLabel(provider: AIProviderConfig["provider"]): string {
+  switch (provider) {
+    case "rule-engine":
+      return "Explain Locally";
+    case "openai":
+      return "Explain with OpenAI";
+    case "claude":
+      return "Explain with Claude";
+    case "gemini":
+      return "Explain with Gemini";
+    case "azure":
+      return "Explain with Azure OpenAI";
+    case "ollama":
+      return "Explain with Ollama";
+    case "generic":
+      return "Explain with AI";
+    default:
+      return "Explain Locally";
+  }
 }
 
 function buildChatGptPrompt(result: TraceResult, question: string, maskIdentifiers: boolean) {

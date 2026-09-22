@@ -4,15 +4,15 @@
 $ErrorActionPreference = "Stop"
 
 # Colors
-function Write-Success { Write-Host "✓ $args" -ForegroundColor Green }
-function Write-Error-Custom { Write-Host "✗ $args" -ForegroundColor Red }
-function Write-Info { Write-Host "→ $args" -ForegroundColor Cyan }
-function Write-Warning-Custom { Write-Host "⚠ $args" -ForegroundColor Yellow }
+function Write-Success { Write-Host "[OK] $args" -ForegroundColor Green }
+function Write-Error-Custom { Write-Host "[FAIL] $args" -ForegroundColor Red }
+function Write-Info { Write-Host "-> $args" -ForegroundColor Cyan }
+function Write-Warning-Custom { Write-Host "[WARN] $args" -ForegroundColor Yellow }
 
 Write-Host ""
-Write-Host "╔════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║     TraceLens AI - Startup Helper       ║" -ForegroundColor Cyan
-Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "     TraceLens AI - Startup Helper       " -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
 $scriptPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
@@ -139,18 +139,18 @@ Write-Success "Web frontend starting (check window for status)"
 
 # Print startup summary
 Write-Host ""
-Write-Host "╔════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║        All services started! 🎉        ║" -ForegroundColor Green
-Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Green
+Write-Host "        All services started!        " -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "📍 Access URLs:" -ForegroundColor Cyan
+Write-Host "Access URLs:" -ForegroundColor Cyan
 Write-Host "   Web UI:  http://localhost:3000" -ForegroundColor Green
 Write-Host "   API:     http://localhost:8000" -ForegroundColor Green
 Write-Host "   Docs:    http://localhost:8000/docs" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "⏹️  To stop services, close the terminal windows" -ForegroundColor Cyan
+Write-Host "To stop services, close the terminal windows" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Waiting for services to run..." -ForegroundColor Yellow
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Yellow

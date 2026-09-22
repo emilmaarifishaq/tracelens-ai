@@ -227,14 +227,14 @@ export function SettingsPanel({
                 AI Provider
               </label>
               <div className="space-y-2 max-h-80 overflow-y-auto">
-                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="radio"
                     name="provider"
                     value="rule-engine"
                     checked={provider === "rule-engine"}
                     onChange={() => setProvider("rule-engine")}
-                    className="cursor-pointer"
+                    className="cursor-pointer mt-1"
                   />
                   <div>
                     <div className="font-medium text-sm">📚 Rule Engine</div>
@@ -244,14 +244,14 @@ export function SettingsPanel({
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="radio"
                     name="provider"
                     value="openai"
                     checked={provider === "openai"}
                     onChange={() => setProvider("openai")}
-                    className="cursor-pointer"
+                    className="cursor-pointer mt-1"
                   />
                   <div>
                     <div className="font-medium text-sm">🤖 OpenAI</div>
@@ -261,14 +261,14 @@ export function SettingsPanel({
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="radio"
                     name="provider"
                     value="claude"
                     checked={provider === "claude"}
                     onChange={() => setProvider("claude")}
-                    className="cursor-pointer"
+                    className="cursor-pointer mt-1"
                   />
                   <div>
                     <div className="font-medium text-sm">🧠 Claude (Anthropic)</div>
@@ -278,14 +278,14 @@ export function SettingsPanel({
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="radio"
                     name="provider"
                     value="gemini"
                     checked={provider === "gemini"}
                     onChange={() => setProvider("gemini")}
-                    className="cursor-pointer"
+                    className="cursor-pointer mt-1"
                   />
                   <div>
                     <div className="font-medium text-sm">✨ Gemini (Google)</div>
@@ -295,14 +295,14 @@ export function SettingsPanel({
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="radio"
                     name="provider"
                     value="azure"
                     checked={provider === "azure"}
                     onChange={() => setProvider("azure")}
-                    className="cursor-pointer"
+                    className="cursor-pointer mt-1"
                   />
                   <div>
                     <div className="font-medium text-sm">☁️ Azure OpenAI</div>
@@ -312,14 +312,14 @@ export function SettingsPanel({
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="radio"
                     name="provider"
                     value="ollama"
                     checked={provider === "ollama"}
                     onChange={() => setProvider("ollama")}
-                    className="cursor-pointer"
+                    className="cursor-pointer mt-1"
                   />
                   <div>
                     <div className="font-medium text-sm">🖥️ Ollama (Local)</div>
@@ -329,14 +329,14 @@ export function SettingsPanel({
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                   <input
                     type="radio"
                     name="provider"
                     value="generic"
                     checked={provider === "generic"}
                     onChange={() => setProvider("generic")}
-                    className="cursor-pointer"
+                    className="cursor-pointer mt-1"
                   />
                   <div>
                     <div className="font-medium text-sm">🔧 Custom Endpoint</div>

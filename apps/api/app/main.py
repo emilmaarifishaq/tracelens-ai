@@ -128,6 +128,7 @@ def explain_trace(payload: dict) -> dict:
         model=payload.get("model"),
         web_search_enabled=payload.get("web_search_enabled"),
         base_url=payload.get("base_url"),
+        provider=payload.get("provider"),
     )
 
 

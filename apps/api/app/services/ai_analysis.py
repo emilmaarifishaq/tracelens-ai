@@ -19,12 +19,17 @@ def explain_trace_context(
     model: str | None = None,
     web_search_enabled: bool | None = None,
     base_url: str | None = None,
+    provider: str | None = None,
 ) -> dict:
     masked_context = mask_context(ai_context) if mask_identifiers else ai_context
     fallback = build_rule_based_explanation(masked_context, question)
 
     config = load_ai_config()
 
+    if provider:
+        config["provider"] = provider
+        if not base_url:
+            config["base_url"] = get_default_base_url(provider)
     if api_key:
         config["api_key"] = api_key
     if model:
@@ -34,7 +39,8 @@ def explain_trace_context(
     if base_url:
         config["base_url"] = base_url
 
-    if not use_ai or config["provider"] == "rule-engine" or not config["api_key"]:
+    requires_api_key = config["provider"] not in {"rule-engine", "ollama"}
+    if not use_ai or config["provider"] == "rule-engine" or (requires_api_key and not config["api_key"]):
         return {
             **fallback,
             "provider": "rule-engine",

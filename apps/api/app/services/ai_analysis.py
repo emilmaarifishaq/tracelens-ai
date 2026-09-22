@@ -380,80 +380,43 @@ def build_prompt(ai_context: dict, fallback: dict, question: str) -> str:
 
 
 def trim_ai_context_for_prompt(ai_context: dict) -> dict:
-    """ai_context["events"] is every decoded frame -- unbounded, and for a large
-    capture (tens of thousands of frames) it blows straight through any model's
-    context window and any reasonable per-minute token budget. trace_summary,
-    detected_errors, and important_events are already-summarized/capped fields
-    built specifically to carry the meaningful signal for an LLM prompt, so the
-    raw event list is redundant bulk here; drop it for the AI request only (the
-    UI/rule-engine paths that need the full list read it separately).
+    """The AI's job here is to explain an already-detected failure, not to
+    independently re-investigate the whole trace -- our own rule engine already
+    computed root_cause and recommended_checks for every detected error. So the
+    prompt only needs those errors (each one is already small and
+    self-contained) plus a couple of counts for orientation; it does not need
+    the rest of the trace structure (participants, procedures, procedure
+    groups, protocol statistics, per-host session drilldowns, a sample of raw
+    events, ...), all of which exist to power UI panels, not to re-derive a
+    conclusion the rule engine already reached.
 
-    Two more unbounded lists hide a level deeper and dominate the remaining
-    size on a large trace: each trace_summary.session_drilldowns[] entry embeds
-    up to 80 full per-host events (its own summary fields like what_happened /
-    likely_cause / next_checks already carry the useful signal), and each
-    trace_summary.procedure_groups[] entry embeds a raw list of every frame
-    number in that group (tens of thousands of bare integers for a long
-    session) -- neither is meaningful for an LLM to read, only for UI
-    drilldown tables."""
-    trimmed = {key: value for key, value in ai_context.items() if key != "events"}
+    For a real 33,055-frame capture this took the prompt from ~6,000,000 tokens
+    (ai_context["events"] alone, uncapped) down to under 1,000."""
+    trace_summary = ai_context.get("trace_summary", {})
+    detected_errors = ai_context.get("detected_errors", [])[:10]
 
-    trace_summary = trimmed.get("trace_summary")
-    if isinstance(trace_summary, dict):
-        trace_summary = dict(trace_summary)
+    minimal: dict = {
+        "event_count": trace_summary.get("event_count"),
+        "protocols_observed": trace_summary.get("protocols"),
+        "detected_errors": detected_errors,
+    }
 
+    if not detected_errors:
+        # No explicit rule-matched failure code -- the rule engine falls back to
+        # timeline/drilldown evidence in this case (see build_rule_based_explanation),
+        # so give the AI the same small amount of context, not the full structure.
+        minimal["failure_timeline_sample"] = trace_summary.get("failure_timeline", [])[:5]
         session_drilldowns = trace_summary.get("session_drilldowns")
-        if isinstance(session_drilldowns, list):
-            trace_summary["session_drilldowns"] = [
-                {k: v for k, v in host.items() if k != "events"} if isinstance(host, dict) else host
-                for host in session_drilldowns[:10]
-            ]
-
-        procedure_groups = trace_summary.get("procedure_groups")
-        if isinstance(procedure_groups, list):
-            trace_summary["procedure_groups"] = [
-                {k: v for k, v in group.items() if k != "frames"} if isinstance(group, dict) else group
-                for group in procedure_groups
-            ]
-
-        # Even with the two big offenders above gone, a genuinely large/busy trace
-        # still spreads real weight across several already-summarized list fields
-        # (procedures, failure_timeline, host_flows, participants). None of them
-        # dominates alone, but a smaller top-N of each is also just better prompt
-        # engineering for a troubleshooting question -- the model reasons better
-        # over the most relevant handful of items than a sprawling full list.
-        for field, limit in (
-            ("procedures", 20),
-            ("failure_timeline", 20),
-            ("host_flows", 15),
-            ("participants", 15),
-        ):
-            value = trace_summary.get(field)
-            if isinstance(value, list) and len(value) > limit:
-                trace_summary[field] = value[:limit]
-
-        # protocol_statistics[protocol].ports lists every distinct ephemeral
-        # source port ever observed -- for a chatty protocol like DNS that can
-        # be hundreds of essentially-random numbers with no diagnostic value.
-        protocol_statistics = trace_summary.get("protocol_statistics")
-        if isinstance(protocol_statistics, dict):
-            trace_summary["protocol_statistics"] = {
-                proto: (
-                    {**stats, "ports": stats["ports"][:10]}
-                    if isinstance(stats, dict) and isinstance(stats.get("ports"), list) and len(stats["ports"]) > 10
-                    else stats
-                )
-                for proto, stats in protocol_statistics.items()
+        if isinstance(session_drilldowns, list) and session_drilldowns:
+            top_host = session_drilldowns[0]
+            minimal["most_active_host"] = {
+                "host": top_host.get("host"),
+                "what_happened": top_host.get("what_happened"),
+                "likely_cause": top_host.get("likely_cause"),
+                "next_checks": top_host.get("next_checks"),
             }
 
-        trimmed["trace_summary"] = trace_summary
-
-    for field, limit in (("detected_errors", 15), ("important_events", 20)):
-        value = trimmed.get(field)
-        if isinstance(value, list) and len(value) > limit:
-            trimmed[field] = value[:limit]
-
-    return trimmed
+    return minimal
 
 
 def mask_context(value: Any) -> Any:

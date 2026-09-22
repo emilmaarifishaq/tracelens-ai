@@ -24,11 +24,18 @@ export function ApiStatus({ apiBaseUrl }: ApiStatusProps) {
           apiBaseUrl ||
           `${typeof window !== "undefined" ? window.location.protocol : "http:"}//${typeof window !== "undefined" ? window.location.hostname : "localhost"}:8000`;
 
-        const response = await fetch(`${url}/system/health`, {
-          method: "GET",
-          cache: "no-store",
-          signal: AbortSignal.timeout(5000),
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        let response: Response;
+        try {
+          response = await fetch(`${url}/system/health`, {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (response.ok) {
           const data = (await response.json()) as SystemHealth;

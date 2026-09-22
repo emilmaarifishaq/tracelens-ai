@@ -51,6 +51,7 @@ async def upload_trace(
     file: UploadFile | None = File(None),
     files: list[UploadFile] | None = File(None),
     mapping_file: UploadFile | None = File(None),
+    keylog_file: UploadFile | None = File(None),
     http2_ports: str = Form("29502,29503,29504,29507,29509,29518"),
     show_heartbeats: bool = Form(False),
     hide_duplicate_pfcp: bool = Form(True),
@@ -71,9 +72,10 @@ async def upload_trace(
     pcap_paths = [await save_upload(upload) for upload in uploads]
     ports = normalize_ports(http2_ports)
     endpoint_mapping = await parse_endpoint_mapping(mapping_file)
+    keylog_path = await save_upload(keylog_file) if keylog_file is not None else None
 
     try:
-        decoded = decode_pcaps(pcap_paths, http2_ports=ports)
+        decoded = decode_pcaps(pcap_paths, http2_ports=ports, keylog_path=keylog_path)
     except DecodeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -94,6 +96,7 @@ async def upload_trace(
         "ai_context": analysis.ai_context,
         "settings": settings,
         "endpoint_mapping_count": len(endpoint_mapping),
+        "keylog_used": keylog_path is not None,
     }
 
 

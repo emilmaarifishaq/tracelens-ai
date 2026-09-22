@@ -13,10 +13,12 @@ class DecodeError(RuntimeError):
     pass
 
 
-def decode_pcaps(paths: list[Path], http2_ports: list[int] | None = None) -> DecodedTrace:
+def decode_pcaps(
+    paths: list[Path], http2_ports: list[int] | None = None, keylog_path: Path | None = None
+) -> DecodedTrace:
     events = []
     for path in paths:
-        decoded = decode_pcap(path, http2_ports=http2_ports)
+        decoded = decode_pcap(path, http2_ports=http2_ports, keylog_path=keylog_path)
         for event in decoded.events:
             event["capture_file"] = path.name
             event["original_frame"] = event.get("frame")
@@ -26,7 +28,9 @@ def decode_pcaps(paths: list[Path], http2_ports: list[int] | None = None) -> Dec
     return DecodedTrace(trace_id=uuid4().hex, events=events)
 
 
-def decode_pcap(path: Path, http2_ports: list[int] | None = None) -> DecodedTrace:
+def decode_pcap(
+    path: Path, http2_ports: list[int] | None = None, keylog_path: Path | None = None
+) -> DecodedTrace:
     command = [
         "tshark",
         "-r",
@@ -37,6 +41,8 @@ def decode_pcap(path: Path, http2_ports: list[int] | None = None) -> DecodedTrac
     ]
     for port in http2_ports or []:
         command.extend(["-d", f"tcp.port=={port},http2"])
+    if keylog_path is not None:
+        command.extend(["-o", f"tls.keylog_file:{keylog_path}"])
 
     try:
         completed = subprocess.run(command, check=False, capture_output=True, text=True, timeout=120)

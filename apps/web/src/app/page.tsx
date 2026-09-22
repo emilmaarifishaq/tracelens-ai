@@ -90,6 +90,7 @@ type HostSessionInsight = {
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
   const [mappingFile, setMappingFile] = useState<File | null>(null);
+  const [keylogFile, setKeylogFile] = useState<File | null>(null);
   const [result, setResult] = useState<TraceResult | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
   const [http2Ports, setHttp2Ports] = useState("29502,29503,29504,29507,29509,29518");
@@ -194,6 +195,9 @@ export default function Home() {
     }
     if (mappingFile) {
       body.append("mapping_file", mappingFile);
+    }
+    if (keylogFile) {
+      body.append("keylog_file", keylogFile);
     }
     body.append("http2_ports", http2Ports);
     body.append("show_heartbeats", String(showHeartbeats));
@@ -353,6 +357,14 @@ export default function Home() {
               type="file"
               accept=".yaml,.yml,.json"
               onChange={(event) => setMappingFile(event.target.files?.[0] || null)}
+            />
+          </label>
+          <label>
+            <span>TLS keylog file</span>
+            <input
+              type="file"
+              accept=".log,.keylog,.txt"
+              onChange={(event) => setKeylogFile(event.target.files?.[0] || null)}
             />
           </label>
           <label className="check">

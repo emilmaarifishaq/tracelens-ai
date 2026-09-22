@@ -14,7 +14,7 @@ import {
   Settings2,
   Shield,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { ApiStatus } from "@/components/ApiStatus";
 import { ProtocolFilter } from "@/components/ProtocolFilter";
@@ -42,6 +42,7 @@ type TraceResult = {
   event_count: number;
   events: Array<Record<string, unknown>>;
   errors: Array<Record<string, unknown>>;
+  warnings?: string[];
   ai_context: {
     trace_summary?: {
       event_count?: number;
@@ -93,6 +94,8 @@ export default function Home() {
   const [keylogFile, setKeylogFile] = useState<File | null>(null);
   const [result, setResult] = useState<TraceResult | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
+  const uploadRequestRef = useRef(0);
+  const uploadAbortRef = useRef<AbortController | null>(null);
   const [http2Ports, setHttp2Ports] = useState("29502,29503,29504,29507,29509,29518");
   const [showHeartbeats, setShowHeartbeats] = useState(false);
   const [hideDuplicatePfcp, setHideDuplicatePfcp] = useState(true);
@@ -187,6 +190,16 @@ export default function Home() {
 
   async function uploadTrace() {
     if (!files.length) return;
+
+    // Cancel any previous upload still in flight so its eventual
+    // success/failure can't land after this one and clobber the UI --
+    // e.g. a slow/corrupted large file finally erroring out after a
+    // faster, later file already finished and displayed results.
+    uploadAbortRef.current?.abort();
+    const controller = new AbortController();
+    uploadAbortRef.current = controller;
+    const requestId = ++uploadRequestRef.current;
+
     setStatus("uploading");
 
     const body = new FormData();
@@ -210,6 +223,7 @@ export default function Home() {
       const response = await fetch(`${apiBaseUrl}/traces`, {
         method: "POST",
         body,
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -217,13 +231,17 @@ export default function Home() {
       }
 
       const decoded = (await response.json()) as TraceResult;
+      if (uploadRequestRef.current !== requestId) return;
+
       const initialHostFlow = decoded.ai_context.trace_summary?.host_flows?.[0] || null;
       setResult(decoded);
       setSelectedHostFlow(initialHostFlow);
       setSelectedFrame(initialHostFlow?.first_frame ? String(initialHostFlow.first_frame) : null);
       setAiAnalysis(null);
       setStatus("idle");
-    } catch {
+    } catch (error) {
+      if (uploadRequestRef.current !== requestId) return;
+      if (error instanceof DOMException && error.name === "AbortError") return;
       setStatus("error");
     }
   }
@@ -340,6 +358,11 @@ export default function Home() {
             />
           </label>
           {status === "error" && <p className="errorText">Decode failed. Check API status and TShark availability.</p>}
+          {result?.warnings?.map((warning) => (
+            <p className="errorText" key={warning}>
+              {warning}
+            </p>
+          ))}
         </section>
 
         <section className="settingsPanel">

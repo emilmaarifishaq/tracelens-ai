@@ -98,6 +98,7 @@ async def upload_trace(
         "settings": settings,
         "endpoint_mapping_count": len(endpoint_mapping),
         "keylog_used": keylog_path is not None,
+        "warnings": decoded.warnings,
     }
 
 

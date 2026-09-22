@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 class DecodedTrace(BaseModel):
     trace_id: str
     events: list[dict] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class TraceAnalysis(BaseModel):

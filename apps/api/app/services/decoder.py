@@ -17,6 +17,7 @@ def decode_pcaps(
     paths: list[Path], http2_ports: list[int] | None = None, keylog_path: Path | None = None
 ) -> DecodedTrace:
     events = []
+    warnings = []
     for path in paths:
         decoded = decode_pcap(path, http2_ports=http2_ports, keylog_path=keylog_path)
         for event in decoded.events:
@@ -24,8 +25,9 @@ def decode_pcaps(
             event["original_frame"] = event.get("frame")
             event["frame"] = len(events) + 1
             events.append(event)
+        warnings.extend(decoded.warnings)
 
-    return DecodedTrace(trace_id=uuid4().hex, events=events)
+    return DecodedTrace(trace_id=uuid4().hex, events=events, warnings=warnings)
 
 
 def decode_pcap(
@@ -54,15 +56,32 @@ def decode_pcap(
     except subprocess.TimeoutExpired as exc:
         raise DecodeError("TShark decode timed out") from exc
 
+    warnings = []
     if completed.returncode != 0:
-        raise DecodeError(completed.stderr.strip() or "TShark failed to decode the trace")
+        # tshark can exit non-zero (e.g. 14) on a truncated/corrupted capture --
+        # common when a capture app is killed or a device disconnects mid-capture --
+        # while still emitting a complete, valid JSON array covering every frame
+        # decoded before the corruption point. Only treat this as fatal if there's
+        # no usable output to fall back on; otherwise surface it as a warning so the
+        # user still gets to see and analyze the frames that decoded successfully.
+        if not completed.stdout.strip():
+            raise DecodeError(completed.stderr.strip() or "TShark failed to decode the trace")
+        warnings.append(
+            f"Capture file appears truncated or corrupted: {completed.stderr.strip()}"
+        )
 
     try:
         packets = json.loads(completed.stdout)
     except json.JSONDecodeError as exc:
+        if warnings:
+            raise DecodeError(warnings[0]) from exc
         raise DecodeError("TShark returned invalid JSON") from exc
 
-    return DecodedTrace(trace_id=uuid4().hex, events=[normalize_packet(packet) for packet in packets])
+    return DecodedTrace(
+        trace_id=uuid4().hex,
+        events=[normalize_packet(packet) for packet in packets],
+        warnings=warnings,
+    )
 
 
 def first_layer(value: object) -> dict:

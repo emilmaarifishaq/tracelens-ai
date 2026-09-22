@@ -30,7 +30,7 @@ interface ProtocolStats {
 
 interface AIProviderConfig {
   apiKey: string;
-  provider: "openai" | "claude" | "azure" | "ollama" | "generic" | "rule-engine";
+  provider: "openai" | "claude" | "azure" | "ollama" | "gemini" | "generic" | "rule-engine";
   model: string;
   webSearchEnabled: boolean;
   baseUrl?: string;

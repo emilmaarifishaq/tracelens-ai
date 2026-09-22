@@ -5,7 +5,7 @@ import { useState } from "react";
 
 interface AIProviderConfig {
   apiKey: string;
-  provider: "openai" | "claude" | "azure" | "ollama" | "generic" | "rule-engine";
+  provider: "openai" | "claude" | "azure" | "ollama" | "gemini" | "generic" | "rule-engine";
   model: string;
   webSearchEnabled: boolean;
   baseUrl?: string;
@@ -27,6 +27,8 @@ function getApiKeyPlaceholder(provider: string): string {
       return "Your Azure API key";
     case "ollama":
       return "Not required for local Ollama";
+    case "gemini":
+      return "AIza...";
     case "generic":
       return "Your API key";
     default:
@@ -44,6 +46,8 @@ function getApiKeyUrl(provider: string): string {
       return "https://portal.azure.com/";
     case "ollama":
       return "https://ollama.ai";
+    case "gemini":
+      return "https://aistudio.google.com/apikey";
     case "generic":
       return "#";
     default:
@@ -61,6 +65,8 @@ function getModelHint(provider: string): string {
       return "Use your deployed model names";
     case "ollama":
       return "Pull models with: ollama pull <model>";
+    case "gemini":
+      return "Recommended: gemini-1.5-flash for speed, gemini-1.5-pro for quality";
     case "generic":
       return "Check your provider's documentation for available models";
     default:
@@ -103,7 +109,7 @@ export function SettingsPanel({
   const [apiKey, setApiKey] = useState(config.apiKey);
   const [showApiKey, setShowApiKey] = useState(false);
   const [provider, setProvider] = useState<
-    "openai" | "claude" | "azure" | "ollama" | "generic" | "rule-engine"
+    "openai" | "claude" | "azure" | "ollama" | "gemini" | "generic" | "rule-engine"
   >(config.provider);
   const [model, setModel] = useState(config.model);
   const [webSearchEnabled, setWebSearchEnabled] = useState(
@@ -126,6 +132,7 @@ export function SettingsPanel({
     ],
     azure: ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-35-turbo"],
     ollama: ["llama2", "mistral", "neural-chat", "openhermes"],
+    gemini: ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"],
     generic: ["custom-model"],
   };
 
@@ -267,6 +274,23 @@ export function SettingsPanel({
                     <div className="font-medium text-sm">🧠 Claude (Anthropic)</div>
                     <div className="text-xs text-gray-500">
                       Claude 3 Opus, Sonnet, Haiku | High quality
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <input
+                    type="radio"
+                    name="provider"
+                    value="gemini"
+                    checked={provider === "gemini"}
+                    onChange={() => setProvider("gemini")}
+                    className="cursor-pointer"
+                  />
+                  <div>
+                    <div className="font-medium text-sm">✨ Gemini (Google)</div>
+                    <div className="text-xs text-gray-500">
+                      Gemini 1.5 Flash, Pro | Fast and low-cost
                     </div>
                   </div>
                 </label>

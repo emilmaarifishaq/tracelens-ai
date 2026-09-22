@@ -208,9 +208,17 @@ def get_default_base_url(provider: str) -> str:
         "claude": "https://api.anthropic.com/v1/messages",
         "azure": "https://YOUR_RESOURCE.openai.azure.com/v1/chat/completions",
         "ollama": "http://localhost:11434/api/chat",
+        "gemini": "https://generativelanguage.googleapis.com/v1beta/models",
         "generic": "https://api.example.com/v1/chat/completions",
     }
     return defaults.get(provider, OPENAI_API_URL)
+
+
+def build_request_url(provider: str, base_url: str, model: str) -> str:
+    if provider == "gemini":
+        # Gemini's model is part of the URL path, not the JSON body.
+        return f"{base_url.rstrip('/')}/{model}:generateContent"
+    return base_url
 
 
 def call_ai_provider(ai_context: dict, fallback: dict, question: str, config: dict[str, Any]) -> str:
@@ -222,9 +230,10 @@ def call_ai_provider(ai_context: dict, fallback: dict, question: str, config: di
     )
 
     payload, headers = build_provider_request(provider, config["model"], system_prompt, prompt_text, config)
+    request_url = build_request_url(provider, config["base_url"], config["model"])
 
     request = urllib.request.Request(
-        config["base_url"],
+        request_url,
         data=json.dumps(payload).encode("utf-8"),
         headers=headers,
         method="POST",
@@ -288,6 +297,15 @@ def build_provider_request(provider: str, model: str, system_prompt: str, prompt
             ],
             "stream": False,
         }
+    elif provider == "gemini":
+        headers["x-goog-api-key"] = config["api_key"]
+        payload = {
+            "contents": [
+                {"role": "user", "parts": [{"text": prompt_text}]},
+            ],
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "generationConfig": {"temperature": 0.7},
+        }
     elif provider == "generic":
         headers["Authorization"] = f"Bearer {config['api_key']}"
         payload = {
@@ -329,6 +347,12 @@ def extract_provider_response(provider: str, body: dict) -> str:
         content = message.get("content")
         if isinstance(content, str) and content.strip():
             return content.strip()
+    elif provider == "gemini":
+        candidates = body.get("candidates", [])
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            if parts and isinstance(parts[0].get("text"), str) and parts[0]["text"].strip():
+                return parts[0]["text"].strip()
 
     raise RuntimeError(f"AI provider {provider} response did not contain text output")
 

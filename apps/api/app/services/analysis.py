@@ -73,7 +73,7 @@ def analyze_events(
     session_drilldowns = build_session_drilldowns(events, host_flows)
 
     protocols_detected = {event.get("protocol") for event in events if event.get("protocol")}
-    protocol_stats = build_protocol_statistics(events)
+    protocol_stats = build_protocol_statistics(events, error_frames)
 
     ai_context = {
         "trace_summary": {
@@ -774,7 +774,7 @@ def duration_between(start: object, end: object) -> float | None:
         return None
 
 
-def build_protocol_statistics(events: list[dict]) -> dict[str, dict]:
+def build_protocol_statistics(events: list[dict], error_frames: set) -> dict[str, dict]:
     """Build statistics for each detected protocol."""
     stats = {}
     for event in events:
@@ -801,7 +801,7 @@ def build_protocol_statistics(events: list[dict]) -> dict[str, dict]:
         if dst_port:
             stats[protocol]["ports"].add(str(dst_port))
 
-        if event.get("frame") in {err.get("frame") for err in events if err.get("is_error")}:
+        if event.get("frame") in error_frames:
             stats[protocol]["error_count"] += 1
 
     return {

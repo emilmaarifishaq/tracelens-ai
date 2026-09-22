@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 
 from app.services.ai_analysis import explain_trace_context
 from app.services.analysis import analyze_events
@@ -75,7 +76,7 @@ async def upload_trace(
     keylog_path = await save_upload(keylog_file) if keylog_file is not None else None
 
     try:
-        decoded = decode_pcaps(pcap_paths, http2_ports=ports, keylog_path=keylog_path)
+        decoded = await run_in_threadpool(decode_pcaps, pcap_paths, http2_ports=ports, keylog_path=keylog_path)
     except DecodeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -84,7 +85,7 @@ async def upload_trace(
         "show_heartbeats": show_heartbeats,
         "hide_duplicate_pfcp": hide_duplicate_pfcp,
     }
-    analysis = analyze_events(decoded.events, endpoint_mapping=endpoint_mapping, settings=settings)
+    analysis = await run_in_threadpool(analyze_events, decoded.events, endpoint_mapping=endpoint_mapping, settings=settings)
     return {
         "trace_id": decoded.trace_id,
         "filename": ", ".join(upload.filename or "trace.pcap" for upload in uploads),

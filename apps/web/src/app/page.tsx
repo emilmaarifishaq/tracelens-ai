@@ -94,6 +94,7 @@ export default function Home() {
   const [keylogFile, setKeylogFile] = useState<File | null>(null);
   const [result, setResult] = useState<TraceResult | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const uploadRequestRef = useRef(0);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const [http2Ports, setHttp2Ports] = useState("29502,29503,29504,29507,29509,29518");
@@ -201,6 +202,7 @@ export default function Home() {
     const requestId = ++uploadRequestRef.current;
 
     setStatus("uploading");
+    setUploadError(null);
 
     const body = new FormData();
     for (const selectedFile of files) {
@@ -227,7 +229,8 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const bodyText = await response.text();
+        throw new Error(extractErrorDetail(bodyText));
       }
 
       const decoded = (await response.json()) as TraceResult;
@@ -242,8 +245,21 @@ export default function Home() {
     } catch (error) {
       if (uploadRequestRef.current !== requestId) return;
       if (error instanceof DOMException && error.name === "AbortError") return;
+      setUploadError(error instanceof Error ? error.message : "Decode failed. Check API status and TShark availability.");
       setStatus("error");
     }
+  }
+
+  function extractErrorDetail(bodyText: string): string {
+    try {
+      const parsed = JSON.parse(bodyText) as { detail?: unknown };
+      if (typeof parsed.detail === "string" && parsed.detail.trim()) {
+        return parsed.detail;
+      }
+    } catch {
+      // not JSON -- fall through to raw text
+    }
+    return bodyText.trim() || "Decode failed. Check API status and TShark availability.";
   }
 
   async function explainTrace() {
@@ -357,7 +373,9 @@ export default function Home() {
               onChange={(event) => setFiles(Array.from(event.target.files || []))}
             />
           </label>
-          {status === "error" && <p className="errorText">Decode failed. Check API status and TShark availability.</p>}
+          {status === "error" && (
+            <p className="errorText">{uploadError || "Decode failed. Check API status and TShark availability."}</p>
+          )}
           {result?.warnings?.map((warning) => (
             <p className="errorText" key={warning}>
               {warning}

@@ -47,7 +47,11 @@ def decode_pcap(
         command.extend(["-o", f"tls.keylog_file:{keylog_path}"])
 
     try:
-        completed = subprocess.run(command, check=False, capture_output=True, text=True, timeout=120)
+        # Large real-world captures (tens of MB, hundreds of thousands of frames)
+        # can legitimately take tshark well past a minute to dissect, especially on
+        # machines with heavy antivirus/endpoint-protection I/O overhead. 120s was
+        # cutting off decodes that would otherwise succeed; give it more room.
+        completed = subprocess.run(command, check=False, capture_output=True, text=True, timeout=600)
     except FileNotFoundError as exc:
         events = decode_gtp_from_pcap(path)
         if events:

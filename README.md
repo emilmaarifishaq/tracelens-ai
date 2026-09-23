@@ -4,6 +4,8 @@ AI-powered trace analyzer for telecom and network protocol troubleshooting.
 
 TraceLens AI turns uploaded PCAP/PCAPNG files into readable protocol flows, detects errors with transparent rules, and prepares evidence-based context for AI analysis.
 
+![TraceLens AI trace analyzer UI](docs/tracelens-ui-capture.png)
+
 ## 🚀 Quick Start
 
 **New to TraceLens? Start here:** [QUICK_START.md](QUICK_START.md)
@@ -26,10 +28,11 @@ All options auto-configure everything and print URLs when ready.
 - GTPv2-C and Diameter starter extraction
 - Rule-based error detection
 - Local protocol knowledge library for error codes, likely root cause, recommended checks, and procedure grouping
-- AI-ready trace summary payload
-- AI explanation endpoint with offline fallback
+- AI-ready trace summary payload, trimmed to a minimal, self-contained context so large traces don't blow past provider token/size limits
+- AI explanation endpoint with offline fallback and multi-provider support: OpenAI, Claude (Anthropic), Gemini (Google), Azure OpenAI, Ollama (local), or any OpenAI-compatible custom endpoint
+- TLS decryption via an uploaded `SSLKEYLOGFILE` keylog, when available, for full HTTP/2, HTTP, and application-layer visibility on TLS-wrapped sessions
 - Endpoint mapping with manual YAML/JSON and Kubernetes pod YAML
-- Next.js web interface for trace upload, ladder flow review, frame details, error summary, and AI analysis
+- Next.js web interface for trace upload, protocol filtering, ladder flow review, frame details, error summary, and AI analysis with live API/TShark status indicators
 
 ## Target Protocols
 
@@ -119,15 +122,24 @@ Local knowledge lives in:
 
 AI receives structured, redacted trace evidence instead of raw PCAP bytes. Every AI answer should cite frame numbers and state when evidence is insufficient.
 
-The API exposes `POST /analysis/explain`. Without an AI provider key, TraceLens returns the local rule-engine explanation so troubleshooting still works offline. When an AI provider is configured, the same endpoint sends the masked AI context to the provider and includes the model answer beside the rule-engine baseline.
+The API exposes `POST /analysis/explain`. Without an AI provider key, TraceLens returns the local rule-engine explanation so troubleshooting still works offline. When an AI provider is configured, the same endpoint sends the masked, size-trimmed AI context to the provider and includes the model answer beside the rule-engine baseline.
 
-TraceLens is designed as a provider gateway, not an OpenAI-only tool. The first supported hosted provider is OpenAI Responses. The same boundary can support OpenAI-compatible endpoints later, including private enterprise gateways or local model servers.
+TraceLens is a provider gateway, not tied to one vendor. Supported providers, configurable per-request from the Settings panel (API keys stay in the browser, never persisted server-side):
 
-Optional web search is a separate switch. When `AI_WEB_SEARCH_ENABLED=true` with the OpenAI provider, TraceLens can let the model use hosted web search for public references such as standards notes, vendor documentation, or known error-code context. Raw PCAP bytes are still not sent; the model receives only the structured, masked trace evidence.
+- **OpenAI** (Responses API)
+- **Claude (Anthropic)**
+- **Gemini (Google)**
+- **Azure OpenAI**
+- **Ollama** (local models, no API key required)
+- **Custom / generic** OpenAI-compatible endpoint (private enterprise gateways, local model servers, etc.)
+
+Because the rule engine already computes root cause and recommended checks for every detected error, the prompt sent to any provider carries only those already-derived conclusions plus a couple of orientation fields -- not the full trace structure. This keeps even large-capture explanations well under typical provider size/token limits.
+
+Optional web search is a separate switch. When enabled with the OpenAI provider, TraceLens can let the model use hosted web search for public references such as standards notes, vendor documentation, or known error-code context. Raw PCAP bytes are still not sent; the model receives only the structured, masked trace evidence.
 
 If no API key is available, the in-app explanation comes from the local TraceLens rule engine. Use the ChatGPT Web handoff when you want external AI with a normal ChatGPT web account: after decoding a trace, click `Copy ChatGPT Prompt`, open https://chatgpt.com/, and paste the generated masked prompt. This keeps TraceLens usable without an API subscription while avoiding brittle browser automation.
 
-Optional environment:
+Optional environment (server-side default provider; per-request provider/key selection from the UI takes precedence):
 
 ```bash
 AI_PROVIDER=openai
@@ -149,6 +161,10 @@ apps/api/.venv/bin/python samples/download_external_captures.py --technology 4G
 ```
 
 Downloaded captures are stored under `samples/external/` and are intentionally ignored by Git.
+
+## License
+
+MIT -- see [LICENSE](LICENSE).
 
 Run deterministic smoke tests against local samples:
 

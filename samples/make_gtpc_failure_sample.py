@@ -2,7 +2,7 @@
 """
 Generate a GTPv2-C Create Session failure PCAP.
 Scenario: MME → SGW → PGW session creation with failure response.
-Failure: PGW returns "User Authentication Failed" (cause 3)
+Failure: PGW returns "No Resources Available" (cause 73)
 """
 import socket
 import struct
@@ -51,11 +51,11 @@ def main() -> int:
         ),
 
         # 3. PGW → SGW: Create Session Response - FAILURE
-        # Cause: 3 = User Authentication Failed
+        # Cause: 73 = No Resources Available
         build_packet(
             build_gtpv2_create_session_response(
                 teid=0x11111111,
-                cause=3,  # User Authentication Failed
+                cause=73,  # No Resources Available
                 failure=True
             ),
             src_ip=PGW_IP,
@@ -70,7 +70,7 @@ def main() -> int:
         build_packet(
             build_gtpv2_create_session_response(
                 teid=0x99999999,
-                cause=3,  # User Authentication Failed
+                cause=73,  # No Resources Available
                 failure=True
             ),
             src_ip=SERVER_IP,
@@ -106,7 +106,7 @@ def main() -> int:
 
     print(f"✓ Generated GTPv2-C failure PCAP: {output}")
     print(f"  Size: {output.stat().st_size} bytes")
-    print(f"  Scenario: Create Session Failure (User Authentication Failed)")
+    print(f"  Scenario: Create Session Failure (No Resources Available)")
     print(f"  Packets: {len(packets)}")
     return 0
 

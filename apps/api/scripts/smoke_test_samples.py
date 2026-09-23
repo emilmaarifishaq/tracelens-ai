@@ -18,6 +18,15 @@ def main() -> None:
 
 def check_gtpv2_failure() -> None:
     sample = REPO_ROOT / "samples" / "gtpc-control-plane-failure.pcap"
+    if not sample.exists():
+        print(
+            "SKIP GTPv2-C failure sample: samples/gtpc-control-plane-failure.pcap not found. "
+            "This is a local-only fixture (not committed -- *.pcap is gitignored) with a "
+            "GTPv2-C Create Session Response, cause 93 (APN Access Denied); "
+            "see check_local_failure_rules for an equivalent check that needs no fixture file."
+        )
+        return
+
     events = decode_pcap(sample).events
     analysis = analyze_events(events)
     context = analysis.ai_context["trace_summary"]

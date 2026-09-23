@@ -1,7 +1,12 @@
 FROM python:3.12-slim
 
+# Suppress tshark/wireshark-common's interactive debconf prompt
+# ("allow non-superusers to capture packets?"), which would otherwise
+# hang a non-interactive `docker build`.
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tshark \
+    && apt-get install -y --no-install-recommends tshark curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

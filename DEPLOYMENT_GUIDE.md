@@ -28,7 +28,7 @@ Before deploying TraceLens AI, you **must** have these installed:
 - **Disk space**: Minimum 2GB free (for app + sample uploads)
 - **Memory**: Minimum 2GB RAM
 - **Network**: Outbound HTTPS (443) if using cloud AI providers
-- **Ports**: 3000 (web), 8000 (API), 5432 (database - Docker only), 6379 (Redis - Docker only)
+- **Ports**: 3000 (web), 8000 (API) -- no database or cache service required
 
 ---
 
@@ -222,7 +222,7 @@ powershell -ExecutionPolicy Bypass -File start.ps1
 
 ### Method 2: Docker Compose (Development)
 
-**Best for:** Full stack with database, Redis, no local dependencies
+**Best for:** Full stack (API + web) with no local Python/Node/TShark dependencies
 
 ```bash
 # Clone repository
@@ -260,10 +260,9 @@ docker compose -f docker-compose.prod.yml down
 ```
 
 **Includes:**
-- PostgreSQL database with persistent storage
-- Redis caching layer
-- Health checks on all services
-- Environment-based configuration
+- Health checks on both services (web waits for the API to report healthy)
+- Persistent volume for uploaded/decoded trace files
+- Environment-based AI provider configuration
 
 ### Method 4: Manual Setup (Full Control)
 
@@ -564,23 +563,13 @@ NODE_OPTIONS="--max-old-space-size=4096" npm start
 uvicorn app.main:app --workers 4 --port 8000
 ```
 
-### Database Optimization (Docker):
-
-```bash
-# In docker-compose.yml, adjust PostgreSQL:
-environment:
-  POSTGRES_MAX_CONNECTIONS: 100
-  POSTGRES_SHARED_BUFFERS: 256MB
-  POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
-```
-
 ---
 
 ## 📚 Next Steps
 
 After successful deployment:
 
-1. **Upload test PCAP** - Use samples in `samples/` folder
+1. **Upload test PCAP** - Generate one with `python3 samples/make_gtpc_failure_sample.py /tmp/sample.pcap` (no real capture is committed to the repo)
 2. **Test protocols** - Try different protocol types
 3. **Configure AI** - Add OpenAI, Claude, or other provider
 4. **Review flows** - Explore ladder view and error detection

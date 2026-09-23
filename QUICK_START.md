@@ -60,10 +60,8 @@ docker compose down
 **URLs:**
 - Web UI: http://localhost:3000
 - API: http://localhost:8000
-- PostgreSQL: localhost:5432
-- Redis: localhost:6379
 
-**Note:** Database and Redis data persists across restarts.
+TraceLens has no database -- everything happens in-memory per request, with uploaded/decoded files under a shared `trace_data` volume so they survive a container restart.
 
 ---
 
@@ -76,10 +74,8 @@ docker compose -f docker-compose.prod.yml up --build
 ```
 
 Features:
-- Database with persistent storage
-- Redis for caching
-- Health checks on all services
-- Environment variable configuration
+- Health checks on both services (web waits for the API to report healthy before starting)
+- Environment variable configuration for the AI provider
 
 ---
 
@@ -121,18 +117,15 @@ sudo apt-get install python3.12 python3.12-venv nodejs npm wireshark
 
 ### API Configuration
 
-Create `.env` file (or it's auto-created):
+Create a `.env` file at the repo root (or it's auto-created by `start.sh`/`start.ps1`), copied from `.env.example`. It's read automatically on startup regardless of which directory you launch `uvicorn` from:
 
 ```bash
-# Database (Docker only)
-DATABASE_URL=postgresql://tracelens:tracelens@localhost:5432/tracelens
-REDIS_URL=redis://localhost:6379/0
-
 # File storage
 UPLOAD_DIR=uploads
 DECODED_DIR=decoded
 
-# AI Provider (optional)
+# AI Provider (optional, server-side default -- the web UI's Settings panel
+# can also set the provider/key per-request instead, without touching this file)
 AI_PROVIDER=rule-engine
 AI_API_KEY=sk-your-key-here
 AI_MODEL=gpt-5
@@ -167,12 +160,19 @@ Should return `{"status":"ok"}` and HTML respectively.
 
 ### Upload a Test File
 
-1. Open http://localhost:3000
-2. Click "Upload PCAP"
-3. Select any `.pcap` or `.pcapng` file
-4. Click "Analyze"
+The `samples/` folder doesn't ship a ready-made `.pcap` (real captures aren't committed to the repo), but it does include a generator for a small, deterministic failure trace:
 
-Should show results within seconds.
+```bash
+python3 samples/make_gtpc_failure_sample.py /tmp/sample.pcap
+```
+
+Then:
+
+1. Open http://localhost:3000
+2. Click "Choose PCAP / PCAPNG" and select `/tmp/sample.pcap`
+3. Click "Analyze"
+
+You should see "Frames decoded: 5" and 2 detected GTPv2-C failures (cause 73, No Resources Available) within a couple of seconds.
 
 ---
 

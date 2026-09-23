@@ -2,23 +2,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Install full dependencies (including dev deps: typescript, tailwindcss --
+# the build step below needs them even though they won't run at runtime).
 COPY package*.json ./
-COPY tsconfig.json ./
-COPY next.config.ts ./
-COPY .next ./
+RUN npm install
 
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy source code
-COPY src ./src
-COPY public ./public
-
-# Build Next.js
+# Copy everything else and build.
+COPY . .
 RUN npm run build
 
-# Expose port
 EXPOSE 3000
 
 # Health check

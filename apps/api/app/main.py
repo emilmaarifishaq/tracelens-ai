@@ -1,6 +1,13 @@
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
+
+# Walks upward from the current working directory to find `.env` --
+# this app is normally started from apps/api/, while `.env` lives at the
+# repo root, so the search needs to climb two levels. Must run before any
+# app.services module reads AI_* config via os.getenv().
+load_dotenv()
 
 from app.services.ai_analysis import explain_trace_context
 from app.services.analysis import analyze_events

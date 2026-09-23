@@ -5,34 +5,20 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://tracelens:tracelens@postgres:5432/tracelens
-      REDIS_URL: redis://redis:6379/0
       UPLOAD_DIR: /data/uploads
       DECODED_DIR: /data/decoded
     volumes:
       - trace_data:/data
-      - ./packages:/workspace/packages:ro
-    depends_on:
-      - postgres
-      - redis
 
-  postgres:
-    image: postgres:16-alpine
+  web:
+    build:
+      context: ./apps/web
+    ports:
+      - "3000:3000"
     environment:
-      POSTGRES_USER: tracelens
-      POSTGRES_PASSWORD: tracelens
-      POSTGRES_DB: tracelens
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    depends_on:
+      - api
 
 volumes:
   trace_data:
-  postgres_data:
-

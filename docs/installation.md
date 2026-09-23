@@ -89,7 +89,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 
 ## Option 2: Docker Backend Plus Local Web
 
-Use this when you want PostgreSQL and Redis started automatically.
+Use this when you don't want to install Python/TShark locally -- the API container has both baked in.
 
 Install:
 
@@ -213,12 +213,14 @@ Run sample smoke tests from the repo root:
 PYTHONPATH=apps/api apps/api/.venv/bin/python apps/api/scripts/smoke_test_samples.py
 ```
 
-Expected output:
+Two of the five checks use optional fixture files that aren't committed to the repo (`*.pcap` is gitignored), so a fresh clone should print `SKIP` for those two and `PASS` for the rest:
 
 ```text
-PASS GTPv2-C failure sample
-PASS CPE DNS failure sample
+SKIP GTPv2-C failure sample: samples/gtpc-control-plane-failure.pcap not found. ...
+SKIP CPE sample: samples/cpe/prod2.pcap not found
 PASS local failure rule coverage
+PASS host extraction coverage
+PASS HTTP payload redirect extraction
 PASS sample smoke tests
 ```
 

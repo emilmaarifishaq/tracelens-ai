@@ -395,3 +395,107 @@ dhcp:
       - Check whether the requested IP belongs to the correct subnet and pool.
       - Verify CPE/client lease state, VLAN, option 82, and DHCP server binding.
       - Confirm DHCP relay path and address pool availability.
+
+# NGAP (5G RAN-CN interface, 3GPP TS 38.413) represents Cause as a CHOICE
+# across 5 categories, not a single flat code -- TraceLens looks these up by
+# category (the specific cause name, e.g. "radio-resources-not-available",
+# comes from the event itself and is used as the displayed error name).
+ngap:
+  radioNetwork:
+    name: NGAP Radio Network Cause
+    severity: critical
+    root_cause: The RAN or UE side reported a radio-network-specific failure (resource unavailability, incompatible capability, handover condition, or similar).
+    recommended_checks:
+      - Check RAN-side (gNB) resource and capacity state for the cell involved.
+      - Verify UE capability, QoS profile, and network slice compatibility with the requested service.
+      - Check radio link quality and coverage around the reported timestamp.
+  transport:
+    name: NGAP Transport Cause
+    severity: critical
+    root_cause: The transport network layer between the RAN and 5G core reported a resource or connectivity problem.
+    recommended_checks:
+      - Check the SCTP association health, capacity, and reachability between gNB and AMF.
+      - Verify no transport-layer congestion or packet loss occurred around this frame.
+  nas:
+    name: NGAP NAS Cause
+    severity: warning
+    root_cause: The failure originated at the NAS (non-access-stratum) layer, such as authentication failure or deregistration.
+    recommended_checks:
+      - Check subscriber authentication and security context state in the AMF/UDM.
+      - Verify the UE was not already deregistered or in an invalid mobility state.
+  protocol:
+    name: NGAP Protocol Cause
+    severity: critical
+    root_cause: The peer reported a protocol-level error while decoding or processing the message (syntax/semantic error, or message not valid for the current state).
+    recommended_checks:
+      - Check for message encoding or software-version mismatches between RAN and core vendors.
+      - Review whether the message was sent during an unexpected procedure state.
+  misc:
+    name: NGAP Miscellaneous Cause
+    severity: warning
+    root_cause: The failure was attributed to an operational condition such as overload, hardware failure, or O&M intervention.
+    recommended_checks:
+      - Check AMF/gNB node health, CPU/resource overload, and O&M/maintenance activity logs around this frame.
+
+# S1AP (4G eNB-MME interface, 3GPP TS 36.413) uses the same 5-category
+# Cause structure as NGAP above.
+s1ap:
+  radioNetwork:
+    name: S1AP Radio Network Cause
+    severity: critical
+    root_cause: The RAN or UE side reported a radio-network-specific failure (resource unavailability, incompatible capability, handover condition, or similar).
+    recommended_checks:
+      - Check RAN-side (eNB) resource and capacity state for the cell involved.
+      - Verify UE capability and QoS profile compatibility with the requested service.
+      - Check radio link quality and coverage around the reported timestamp.
+  transport:
+    name: S1AP Transport Cause
+    severity: critical
+    root_cause: The transport network layer between the eNB and EPC reported a resource or connectivity problem.
+    recommended_checks:
+      - Check the SCTP association health, capacity, and reachability between eNB and MME.
+      - Verify no transport-layer congestion or packet loss occurred around this frame.
+  nas:
+    name: S1AP NAS Cause
+    severity: warning
+    root_cause: The failure originated at the NAS layer, such as authentication failure or detach.
+    recommended_checks:
+      - Check subscriber authentication and security context state in the MME/HSS.
+      - Verify the UE was not already detached or in an invalid mobility state.
+  protocol:
+    name: S1AP Protocol Cause
+    severity: critical
+    root_cause: The peer reported a protocol-level error while decoding or processing the message (syntax/semantic error, or message not valid for the current state).
+    recommended_checks:
+      - Check for message encoding or software-version mismatches between RAN and core vendors.
+      - Review whether the message was sent during an unexpected procedure state.
+  misc:
+    name: S1AP Miscellaneous Cause
+    severity: warning
+    root_cause: The failure was attributed to an operational condition such as overload, hardware failure, or O&M intervention.
+    recommended_checks:
+      - Check MME/eNB node health, CPU/resource overload, and O&M/maintenance activity logs around this frame.
+
+radius:
+  "3":
+    name: RADIUS Access-Reject
+    severity: critical
+    root_cause: The RADIUS server explicitly rejected the access request (authentication or authorization failure).
+    recommended_checks:
+      - Verify the subscriber's credentials/certificate and the RADIUS shared secret configuration.
+      - Check RADIUS server policy and authorization rules for this NAS/subscriber.
+      - Confirm the RADIUS server is not applying a blanket deny due to an upstream directory/AAA outage.
+  "42":
+    name: RADIUS Disconnect-NAK
+    severity: warning
+    root_cause: The NAS rejected a Disconnect-Request from the RADIUS server -- the session could not be forcibly terminated as requested.
+    recommended_checks:
+      - Verify the session identifiers (Acct-Session-Id / User-Name) in the Disconnect-Request match an active session on the NAS.
+      - Check the NAS's Dynamic Authorization Server support and shared secret.
+  "45":
+    name: RADIUS CoA-NAK
+    severity: warning
+    root_cause: The NAS rejected a Change-of-Authorization request from the RADIUS server.
+    recommended_checks:
+      - Verify the requested attribute changes are supported and valid for the identified session on this NAS.
+      - Check the NAS's Dynamic Authorization Server support and shared secret.

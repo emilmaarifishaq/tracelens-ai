@@ -63,6 +63,29 @@ def analyze_events(
         if event.get("is_retransmission") and tcp_retransmission:
             errors.append(build_error(event, "TCP", "retransmission", tcp_retransmission))
 
+        # NGAP/S1AP Cause is a CHOICE across 5 categories (radioNetwork/
+        # transport/nas/protocol/misc); the rule table covers each category
+        # once, and the specific cause name (already resolved in decoder.py
+        # from the real enum value) becomes the displayed error name.
+        if event.get("protocol") == "NGAP" and event.get("cause_category"):
+            ngap_failure = lookup_error(error_codes, "ngap", event.get("cause_category"))
+            if ngap_failure:
+                errors.append(
+                    build_error(event, "NGAP", event.get("cause_code"), with_specific_name(ngap_failure, event))
+                )
+
+        if event.get("protocol") == "S1AP" and event.get("cause_category"):
+            s1ap_failure = lookup_error(error_codes, "s1ap", event.get("cause_category"))
+            if s1ap_failure:
+                errors.append(
+                    build_error(event, "S1AP", event.get("cause_code"), with_specific_name(s1ap_failure, event))
+                )
+
+        radius_code = str(event.get("code") or "")
+        radius_failure = lookup_error(error_codes, "radius", radius_code)
+        if event.get("protocol") == "RADIUS" and radius_failure:
+            errors.append(build_error(event, "RADIUS", radius_code, radius_failure))
+
     errors = sorted(errors, key=error_sort_key)
     error_frames = {err.get("frame") for err in errors}
     participants = build_participants(events, endpoint_mapping)
@@ -122,6 +145,16 @@ def lookup_status_error(error_codes: dict, domain: str, code: object) -> dict | 
     return None
 
 
+def with_specific_name(definition: dict, event: dict) -> dict:
+    """NGAP/S1AP rules are keyed by cause *category* (5 total), but the
+    error should display the specific cause name from this event (e.g.
+    "radio-resources-not-available"), not the generic category label."""
+    cause_name = event.get("cause_name")
+    if not cause_name:
+        return definition
+    return {**definition, "name": cause_name}
+
+
 def build_error(event: dict, protocol: str, code: object, definition: dict) -> dict:
     frame = event.get("frame")
     name = definition["name"]
@@ -147,6 +180,12 @@ def build_error_evidence(event: dict, protocol: str, code: object, name: str) ->
         return f"{message} returned cause {code} ({name}) at frame {frame}."
     if protocol == "Diameter":
         return f"Diameter failure code {code} ({name}) at frame {frame}."
+    if protocol in {"NGAP", "S1AP"}:
+        message = event.get("message") or f"{protocol} message"
+        category = event.get("cause_category") or "cause"
+        return f"{message} reported {category} cause {code} ({name}) at frame {frame}."
+    if protocol == "RADIUS":
+        return f"RADIUS {name} (code {code}) observed at frame {frame}."
     if protocol == "DNS":
         query = event.get("dns_query") or "query"
         return f"DNS response for {query} returned {name} at frame {frame}."
@@ -176,13 +215,16 @@ def error_sort_key(error: dict) -> tuple[int, int, int]:
         "GTPv1-C": 0,
         "Diameter": 1,
         "PFCP": 2,
-        "HTTP": 3,
-        "SIP": 4,
-        "DNS": 5,
-        "DHCP": 6,
-        "TLS": 7,
-        "TCP": 8,
-    }.get(str(error.get("protocol")), 9)
+        "NGAP": 3,
+        "S1AP": 3,
+        "HTTP": 4,
+        "SIP": 5,
+        "RADIUS": 6,
+        "DNS": 7,
+        "DHCP": 8,
+        "TLS": 9,
+        "TCP": 10,
+    }.get(str(error.get("protocol")), 11)
     return (severity_score, protocol_score, int(error.get("frame") or 0))
 
 

@@ -91,6 +91,35 @@ def check_local_failure_rules() -> None:
             "cause_code": "65",
             "sequence_number": 10,
         },
+        {
+            "frame": 5,
+            "time": "5.0",
+            "protocol": "NGAP",
+            "message": "InitialContextSetup Failure",
+            "procedure_code": 14,
+            "outcome": "unsuccessful",
+            "cause_category": "radioNetwork",
+            "cause_code": 22,
+            "cause_name": "radio-resources-not-available",
+        },
+        {
+            "frame": 6,
+            "time": "6.0",
+            "protocol": "S1AP",
+            "message": "InitialContextSetup Failure",
+            "procedure_code": 9,
+            "outcome": "unsuccessful",
+            "cause_category": "nas",
+            "cause_code": 1,
+            "cause_name": "authentication-failure",
+        },
+        {
+            "frame": 7,
+            "time": "7.0",
+            "protocol": "RADIUS",
+            "message": "RADIUS Access-Reject",
+            "code": "3",
+        },
     ]
     analysis = analyze_events(events)
     names = {error["error"] for error in analysis.errors}
@@ -101,6 +130,9 @@ def check_local_failure_rules() -> None:
     assert "HTTP Service Unavailable" in names, "missing HTTP 503"
     assert "SIP Forbidden" in names, "missing SIP 403"
     assert "PFCP Session Context Not Found" in names, "missing PFCP cause 65"
+    assert "radio-resources-not-available" in names, "missing NGAP radioNetwork cause"
+    assert "authentication-failure" in names, "missing S1AP nas cause"
+    assert "RADIUS Access-Reject" in names, "missing RADIUS Access-Reject"
     assert "CPE Address Provisioning" in group_names, "missing DHCP procedure group"
     assert "Application Service Access" in group_names, "missing application access group"
     assert summary["failure_timeline"], "missing failure timeline"

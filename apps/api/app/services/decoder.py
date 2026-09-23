@@ -818,26 +818,257 @@ def gtp_message_name(value: object) -> str | None:
 
 # ========== Additional Protocol Normalizers ==========
 
+# NGAP/S1AP procedure and Cause value tables below are generated directly
+# from `tshark -G values`, i.e. the same authoritative enumerations the
+# ngap/s1ap dissectors themselves use (3GPP TS 38.413 / TS 36.413 Cause and
+# ProcedureCode IEs) -- not hand-transcribed from spec text.
+
+NGAP_PROCEDURE_NAMES = {
+    0: "id-AMFConfigurationUpdate", 1: "id-AMFStatusIndication", 2: "id-CellTrafficTrace",
+    3: "id-DeactivateTrace", 4: "id-DownlinkNASTransport", 5: "id-DownlinkNonUEAssociatedNRPPaTransport",
+    6: "id-DownlinkRANConfigurationTransfer", 7: "id-DownlinkRANStatusTransfer",
+    8: "id-DownlinkUEAssociatedNRPPaTransport", 9: "id-ErrorIndication", 10: "id-HandoverCancel",
+    11: "id-HandoverNotification", 12: "id-HandoverPreparation", 13: "id-HandoverResourceAllocation",
+    14: "id-InitialContextSetup", 15: "id-InitialUEMessage", 16: "id-LocationReportingControl",
+    17: "id-LocationReportingFailureIndication", 18: "id-LocationReport", 19: "id-NASNonDeliveryIndication",
+    20: "id-NGReset", 21: "id-NGSetup", 22: "id-OverloadStart", 23: "id-OverloadStop", 24: "id-Paging",
+    25: "id-PathSwitchRequest", 26: "id-PDUSessionResourceModify", 27: "id-PDUSessionResourceModifyIndication",
+    28: "id-PDUSessionResourceRelease", 29: "id-PDUSessionResourceSetup", 30: "id-PDUSessionResourceNotify",
+    31: "id-PrivateMessage", 32: "id-PWSCancel", 33: "id-PWSFailureIndication", 34: "id-PWSRestartIndication",
+    35: "id-RANConfigurationUpdate", 36: "id-RerouteNASRequest", 37: "id-RRCInactiveTransitionReport",
+    38: "id-TraceFailureIndication", 39: "id-TraceStart", 40: "id-UEContextModification",
+    41: "id-UEContextRelease", 42: "id-UEContextReleaseRequest", 43: "id-UERadioCapabilityCheck",
+    44: "id-UERadioCapabilityInfoIndication", 45: "id-UETNLABindingRelease", 46: "id-UplinkNASTransport",
+    47: "id-UplinkNonUEAssociatedNRPPaTransport", 48: "id-UplinkRANConfigurationTransfer",
+    49: "id-UplinkRANStatusTransfer", 50: "id-UplinkUEAssociatedNRPPaTransport", 51: "id-WriteReplaceWarning",
+    52: "id-SecondaryRATDataUsageReport", 53: "id-UplinkRIMInformationTransfer",
+    54: "id-DownlinkRIMInformationTransfer", 55: "id-RetrieveUEInformation", 56: "id-UEInformationTransfer",
+    57: "id-RANCPRelocationIndication", 58: "id-UEContextResume", 59: "id-UEContextSuspend",
+    60: "id-UERadioCapabilityIDMapping", 61: "id-HandoverSuccess", 62: "id-UplinkRANEarlyStatusTransfer",
+    63: "id-DownlinkRANEarlyStatusTransfer", 64: "id-AMFCPRelocationIndication",
+    65: "id-ConnectionEstablishmentIndication", 66: "id-BroadcastSessionModification",
+    67: "id-BroadcastSessionRelease", 68: "id-BroadcastSessionSetup", 69: "id-DistributionSetup",
+    70: "id-DistributionRelease", 71: "id-MulticastSessionActivation", 72: "id-MulticastSessionDeactivation",
+    73: "id-MulticastSessionUpdate", 74: "id-MulticastGroupPaging", 75: "id-BroadcastSessionReleaseRequired",
+    76: "id-TimingSynchronisationStatus", 77: "id-TimingSynchronisationStatusReport",
+    78: "id-MTCommunicationHandling", 79: "id-RANPagingRequest", 80: "id-BroadcastSessionTransport",
+}
+
+NGAP_RADIONETWORK_CAUSE = {
+    0: "unspecified", 1: "txnrelocoverall-expiry", 2: "successful-handover",
+    3: "release-due-to-ngran-generated-reason", 4: "release-due-to-5gc-generated-reason",
+    5: "handover-cancelled", 6: "partial-handover", 7: "ho-failure-in-target-5GC-ngran-node-or-target-system",
+    8: "ho-target-not-allowed", 9: "tngrelocoverall-expiry", 10: "tngrelocprep-expiry",
+    11: "cell-not-available", 12: "unknown-targetID", 13: "no-radio-resources-available-in-target-cell",
+    14: "unknown-local-UE-NGAP-ID", 15: "inconsistent-remote-UE-NGAP-ID",
+    16: "handover-desirable-for-radio-reason", 17: "time-critical-handover",
+    18: "resource-optimisation-handover", 19: "reduce-load-in-serving-cell", 20: "user-inactivity",
+    21: "radio-connection-with-ue-lost", 22: "radio-resources-not-available", 23: "invalid-qos-combination",
+    24: "failure-in-radio-interface-procedure", 25: "interaction-with-other-procedure",
+    26: "unknown-PDU-session-ID", 27: "unkown-qos-flow-ID", 28: "multiple-PDU-session-ID-instances",
+    29: "multiple-qos-flow-ID-instances", 30: "encryption-and-or-integrity-protection-algorithms-not-supported",
+    31: "ng-intra-system-handover-triggered", 32: "ng-inter-system-handover-triggered",
+    33: "xn-handover-triggered", 34: "not-supported-5QI-value", 35: "ue-context-transfer",
+    36: "ims-voice-eps-fallback-or-rat-fallback-triggered", 37: "up-integrity-protection-not-possible",
+    38: "up-confidentiality-protection-not-possible", 39: "slice-not-supported",
+    40: "ue-in-rrc-inactive-state-not-reachable", 41: "redirection",
+    42: "resources-not-available-for-the-slice", 43: "ue-max-integrity-protected-data-rate-reason",
+    44: "release-due-to-cn-detected-mobility", 45: "n26-interface-not-available",
+    46: "release-due-to-pre-emption", 47: "multiple-location-reporting-reference-ID-instances",
+    48: "rsn-not-available-for-the-up", 49: "npn-access-denied", 50: "cag-only-access-denied",
+    51: "insufficient-ue-capabilities", 52: "redcap-ue-not-supported", 53: "unknown-MBS-Session-ID",
+    54: "indicated-MBS-session-area-information-not-served-by-the-gNB",
+    55: "inconsistent-slice-info-for-the-session", 56: "misaligned-association-for-multicast-unicast",
+    57: "eredcap-ue-not-supported", 58: "two-rx-xr-ue-not-supported",
+}
+
+NGAP_TRANSPORT_CAUSE = {0: "transport-resource-unavailable", 1: "unspecified"}
+
+NGAP_NAS_CAUSE = {
+    0: "normal-release", 1: "authentication-failure", 2: "deregister", 3: "unspecified",
+    4: "uE-not-in-PLMN-serving-area", 5: "mobile-IAB-not-authorized", 6: "iAB-not-authorized",
+}
+
+NGAP_PROTOCOL_CAUSE = {
+    0: "transfer-syntax-error", 1: "abstract-syntax-error-reject",
+    2: "abstract-syntax-error-ignore-and-notify", 3: "message-not-compatible-with-receiver-state",
+    4: "semantic-error", 5: "abstract-syntax-error-falsely-constructed-message", 6: "unspecified",
+}
+
+NGAP_MISC_CAUSE = {
+    0: "control-processing-overload", 1: "not-enough-user-plane-processing-resources",
+    2: "hardware-failure", 3: "om-intervention", 4: "unknown-PLMN-or-SNPN", 5: "unspecified",
+}
+
+NGAP_CAUSE_TABLES = {
+    "radioNetwork": NGAP_RADIONETWORK_CAUSE,
+    "transport": NGAP_TRANSPORT_CAUSE,
+    "nas": NGAP_NAS_CAUSE,
+    "protocol": NGAP_PROTOCOL_CAUSE,
+    "misc": NGAP_MISC_CAUSE,
+}
+
+S1AP_PROCEDURE_NAMES = {
+    0: "id-HandoverPreparation", 1: "id-HandoverResourceAllocation", 2: "id-HandoverNotification",
+    3: "id-PathSwitchRequest", 4: "id-HandoverCancel", 5: "id-E-RABSetup", 6: "id-E-RABModify",
+    7: "id-E-RABRelease", 8: "id-E-RABReleaseIndication", 9: "id-InitialContextSetup", 10: "id-Paging",
+    11: "id-downlinkNASTransport", 12: "id-initialUEMessage", 13: "id-uplinkNASTransport", 14: "id-Reset",
+    15: "id-ErrorIndication", 16: "id-NASNonDeliveryIndication", 17: "id-S1Setup",
+    18: "id-UEContextReleaseRequest", 19: "id-DownlinkS1cdma2000tunnelling",
+    20: "id-UplinkS1cdma2000tunnelling", 21: "id-UEContextModification", 22: "id-UECapabilityInfoIndication",
+    23: "id-UEContextRelease", 24: "id-eNBStatusTransfer", 25: "id-MMEStatusTransfer",
+    26: "id-DeactivateTrace", 27: "id-TraceStart", 28: "id-TraceFailureIndication",
+    29: "id-ENBConfigurationUpdate", 30: "id-MMEConfigurationUpdate", 31: "id-LocationReportingControl",
+    32: "id-LocationReportingFailureIndication", 33: "id-LocationReport", 34: "id-OverloadStart",
+    35: "id-OverloadStop", 36: "id-WriteReplaceWarning", 37: "id-eNBDirectInformationTransfer",
+    38: "id-MMEDirectInformationTransfer", 39: "id-PrivateMessage", 40: "id-eNBConfigurationTransfer",
+    41: "id-MMEConfigurationTransfer", 42: "id-CellTrafficTrace", 43: "id-Kill",
+    44: "id-downlinkUEAssociatedLPPaTransport", 45: "id-uplinkUEAssociatedLPPaTransport",
+    46: "id-downlinkNonUEAssociatedLPPaTransport", 47: "id-uplinkNonUEAssociatedLPPaTransport",
+    48: "id-UERadioCapabilityMatch", 49: "id-PWSRestartIndication", 50: "id-E-RABModificationIndication",
+    51: "id-PWSFailureIndication", 52: "id-RerouteNASRequest", 53: "id-UEContextModificationIndication",
+    54: "id-ConnectionEstablishmentIndication", 55: "id-UEContextSuspend", 56: "id-UEContextResume",
+    57: "id-NASDeliveryIndication", 58: "id-RetrieveUEInformation", 59: "id-UEInformationTransfer",
+    60: "id-eNBCPRelocationIndication", 61: "id-MMECPRelocationIndication",
+    62: "id-SecondaryRATDataUsageReport", 63: "id-UERadioCapabilityIDMapping", 64: "id-HandoverSuccess",
+    65: "id-eNBEarlyStatusTransfer", 66: "id-MMEEarlyStatusTransfer",
+}
+
+S1AP_RADIONETWORK_CAUSE = {
+    0: "unspecified", 1: "tx2relocoverall-expiry", 2: "successful-handover",
+    3: "release-due-to-eutran-generated-reason", 4: "handover-cancelled", 5: "partial-handover",
+    6: "ho-failure-in-target-EPC-eNB-or-target-system", 7: "ho-target-not-allowed",
+    8: "tS1relocoverall-expiry", 9: "tS1relocprep-expiry", 10: "cell-not-available",
+    11: "unknown-targetID", 12: "no-radio-resources-available-in-target-cell",
+    13: "unknown-mme-ue-s1ap-id", 14: "unknown-enb-ue-s1ap-id", 15: "unknown-pair-ue-s1ap-id",
+    16: "handover-desirable-for-radio-reason", 17: "time-critical-handover",
+    18: "resource-optimisation-handover", 19: "reduce-load-in-serving-cell", 20: "user-inactivity",
+    21: "radio-connection-with-ue-lost", 22: "load-balancing-tau-required", 23: "cs-fallback-triggered",
+    24: "ue-not-available-for-ps-service", 25: "radio-resources-not-available",
+    26: "failure-in-radio-interface-procedure", 27: "invalid-qos-combination",
+    28: "interrat-redirection", 29: "interaction-with-other-procedure", 30: "unknown-E-RAB-ID",
+    31: "multiple-E-RAB-ID-instances", 32: "encryption-and-or-integrity-protection-algorithms-not-supported",
+    33: "s1-intra-system-handover-triggered", 34: "s1-inter-system-handover-triggered",
+    35: "x2-handover-triggered", 36: "redirection-towards-1xRTT", 37: "not-supported-QCI-value",
+    38: "invalid-CSG-Id", 39: "release-due-to-pre-emption", 40: "n26-interface-not-available",
+    41: "insufficient-ue-capabilities", 42: "maximum-bearer-pre-emption-rate-exceeded",
+    43: "up-integrity-protection-not-possible", 44: "release-due-to-discontinuous-coverage",
+}
+
+S1AP_TRANSPORT_CAUSE = {0: "transport-resource-unavailable", 1: "unspecified"}
+
+S1AP_NAS_CAUSE = {
+    0: "normal-release", 1: "authentication-failure", 2: "detach", 3: "unspecified",
+    4: "csg-subscription-expiry", 5: "uE-not-in-PLMN-serving-area", 6: "iab-not-authorized",
+}
+
+S1AP_PROTOCOL_CAUSE = {
+    0: "transfer-syntax-error", 1: "abstract-syntax-error-reject",
+    2: "abstract-syntax-error-ignore-and-notify", 3: "message-not-compatible-with-receiver-state",
+    4: "semantic-error", 5: "abstract-syntax-error-falsely-constructed-message", 6: "unspecified",
+}
+
+S1AP_MISC_CAUSE = {
+    0: "control-processing-overload", 1: "not-enough-user-plane-processing-resources",
+    2: "hardware-failure", 3: "om-intervention", 4: "unspecified", 5: "unknown-PLMN",
+}
+
+S1AP_CAUSE_TABLES = {
+    "radioNetwork": S1AP_RADIONETWORK_CAUSE,
+    "transport": S1AP_TRANSPORT_CAUSE,
+    "nas": S1AP_NAS_CAUSE,
+    "protocol": S1AP_PROTOCOL_CAUSE,
+    "misc": S1AP_MISC_CAUSE,
+}
+
+
+def outcome_type(value: object, prefix: str) -> str | None:
+    """NGAP/S1AP PDUs are an ASN.1 CHOICE of initiatingMessage,
+    successfulOutcome, or unsuccessfulOutcome -- which one is present (as a
+    dict key, not a field value) determines whether a given procedure code
+    is a request, a success response, or a reject/failure response."""
+    if isinstance(value, dict):
+        if f"{prefix}.initiatingMessage_element" in value:
+            return "initiating"
+        if f"{prefix}.successfulOutcome_element" in value:
+            return "successful"
+        if f"{prefix}.unsuccessfulOutcome_element" in value:
+            return "unsuccessful"
+        for child in value.values():
+            found = outcome_type(child, prefix)
+            if found:
+                return found
+    if isinstance(value, list):
+        for child in value:
+            found = outcome_type(child, prefix)
+            if found:
+                return found
+    return None
+
+
+def extract_ran_cause(value: dict, prefix: str) -> tuple[str, int] | None:
+    """NGAP/S1AP represent Cause as a CHOICE across 5 categories
+    (radioNetwork/transport/nas/protocol/misc); only one is present per
+    message. Returns (category, numeric value) or None if no Cause IE."""
+    for category in ("radioNetwork", "transport", "nas", "protocol", "misc"):
+        found = recursive_get(value, f"{prefix}.{category}")
+        if found is not None:
+            return category, parse_int(found)
+    return None
+
+
 def normalize_ngap(ngap: dict) -> dict:
-    procedure_code = recursive_get(ngap, "ngap.ProcedureCode")
-    message_type = recursive_get(ngap, "ngap.messageType")
-    return {
+    procedure_code = parse_int(recursive_get(ngap, "ngap.procedureCode"))
+    outcome = outcome_type(ngap, "ngap")
+    cause = extract_ran_cause(ngap, "ngap")
+    procedure_name = NGAP_PROCEDURE_NAMES.get(procedure_code, f"procedure {procedure_code}")
+    message = ngap_s1ap_message_name(procedure_name, outcome)
+
+    event: dict = {
         "protocol": "NGAP",
-        "message": f"NGAP Procedure {procedure_code}" if procedure_code else "NGAP traffic",
+        "message": message,
         "procedure_code": procedure_code,
-        "message_type": message_type,
+        "outcome": outcome,
     }
+    if cause:
+        category, code = cause
+        event["cause_category"] = category
+        event["cause_code"] = code
+        event["cause_name"] = NGAP_CAUSE_TABLES[category].get(code, str(code))
+        event["message"] = f"{message} ({event['cause_name']})"
+    return event
 
 
 def normalize_s1ap(s1ap: dict) -> dict:
-    procedure_code = recursive_get(s1ap, "s1ap.ProcedureCode")
-    message_type = recursive_get(s1ap, "s1ap.messageType")
-    return {
+    procedure_code = parse_int(recursive_get(s1ap, "s1ap.procedureCode"))
+    outcome = outcome_type(s1ap, "s1ap")
+    cause = extract_ran_cause(s1ap, "s1ap")
+    procedure_name = S1AP_PROCEDURE_NAMES.get(procedure_code, f"procedure {procedure_code}")
+    message = ngap_s1ap_message_name(procedure_name, outcome)
+
+    event: dict = {
         "protocol": "S1AP",
-        "message": f"S1AP Procedure {procedure_code}" if procedure_code else "S1AP traffic",
+        "message": message,
         "procedure_code": procedure_code,
-        "message_type": message_type,
+        "outcome": outcome,
     }
+    if cause:
+        category, code = cause
+        event["cause_category"] = category
+        event["cause_code"] = code
+        event["cause_name"] = S1AP_CAUSE_TABLES[category].get(code, str(code))
+        event["message"] = f"{message} ({event['cause_name']})"
+    return event
+
+
+def ngap_s1ap_message_name(procedure_name: str, outcome: str | None) -> str:
+    # e.g. "id-NGSetup" -> "NGSetup". Not every procedure has a paired
+    # request/response (e.g. InitialUEMessage, ErrorIndication are
+    # initiatingMessage-only), so label the outcome plainly rather than
+    # guessing a "Request"/"Response" suffix that would be wrong for those.
+    name = procedure_name[3:] if procedure_name.startswith("id-") else procedure_name
+    suffix = {"initiating": "", "successful": " Response", "unsuccessful": " Failure"}.get(outcome, "")
+    return f"{name}{suffix}"
 
 
 def normalize_sctp(sctp: dict) -> dict:

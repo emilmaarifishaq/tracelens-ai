@@ -42,29 +42,28 @@ All options auto-configure everything and print URLs when ready.
 
 ## Target Protocols
 
-Initial focus:
+Decoded with failure detection (root cause + recommended checks, not just labeling):
 
-- GTPv1/GTPv2-C
-- GTP-U
-- Diameter
-- SCTP
-- DHCP
-- DNS
-- TCP/UDP basics
-- HTTP/TLS
-- SIP/IMS starter failure detection
+- GTPv1-C / GTPv2-C -- cause-code failure detection
+- PFCP -- cause-code failure detection
+- Diameter -- result-code failure detection
+- NGAP (5G RAN-CN, 3GPP TS 38.413) -- Cause IE failure detection across all 5 cause categories (radioNetwork/transport/nas/protocol/misc), verified against a real free5GC registration capture
+- S1AP (4G eNB-MME, 3GPP TS 36.413) -- same Cause IE structure as NGAP
+- RADIUS -- Access-Reject / Disconnect-NAK / CoA-NAK detection
+- DNS, HTTP, SIP, DHCP -- response-code failure detection
+- TCP -- reset and retransmission detection
+- TLS -- alert detection
+
+Decoded and labeled, not yet checked for failures:
+
+- GTP-U, SCTP, SNMP, LDAP, NTP, SMTP, POP3, IMAP, BGP, OSPF
 - MQTT/QUIC/SSH traffic labeling
-- PFCP starter cause-code detection
-- RTP basics
+- ARP, ICMP
 
-Expansion path:
+Not yet implemented (architecturally different from the binary-IE protocols above):
 
-- PFCP
-- NGAP
-- NAS EPS / NAS 5GS
-- S1AP
-- HTTP/2 SBI
-- RADIUS
+- NAS EPS / NAS 5GS -- typically opaque/ciphered octet strings inside S1AP/NGAP containers, needs different handling than a flat cause-code lookup
+- HTTP/2 SBI (5G Service-Based Interface) -- 3GPP TS 29.500-series signaling carried as JSON bodies over HTTP/2, needs body inspection rather than binary IE parsing
 - Any future protocol with a decoder and normalizer
 
 CPE and internet-access traces are supported at a starter level with readable DHCP, DNS, TCP, TLS, HTTP, MQTT, QUIC, SSH, ICMP, and ARP event labels plus basic DHCP/DNS/TCP/TLS/HTTP issue detection.

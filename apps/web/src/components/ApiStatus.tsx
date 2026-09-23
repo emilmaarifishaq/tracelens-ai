@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AlertCircle, CheckCircle2, Loader, Wrench } from "lucide-react";
 
 interface ApiStatusProps {
@@ -16,8 +16,17 @@ export function ApiStatus({ apiBaseUrl }: ApiStatusProps) {
   const [status, setStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const [tsharkAvailable, setTsharkAvailable] = useState<boolean | null>(null);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const consecutiveFailuresRef = useRef(0);
 
   useEffect(() => {
+    // A single missed health check doesn't mean the API is actually down --
+    // a large trace decode can briefly hold Python's GIL long enough (CPU-bound
+    // JSON parsing/analysis, not I/O) to delay this lightweight request even
+    // though the backend is working fine and the decode finishes normally.
+    // Require a few consecutive misses before showing "Disconnected" so a
+    // momentary blip during heavy analysis doesn't look like an outage.
+    const FAILURE_THRESHOLD = 3;
+
     const checkSystem = async () => {
       try {
         const url =
@@ -39,15 +48,22 @@ export function ApiStatus({ apiBaseUrl }: ApiStatusProps) {
 
         if (response.ok) {
           const data = (await response.json()) as SystemHealth;
+          consecutiveFailuresRef.current = 0;
           setStatus("connected");
           setTsharkAvailable(data.tshark_available);
         } else {
+          consecutiveFailuresRef.current += 1;
+          if (consecutiveFailuresRef.current >= FAILURE_THRESHOLD) {
+            setStatus("disconnected");
+            setTsharkAvailable(null);
+          }
+        }
+      } catch {
+        consecutiveFailuresRef.current += 1;
+        if (consecutiveFailuresRef.current >= FAILURE_THRESHOLD) {
           setStatus("disconnected");
           setTsharkAvailable(null);
         }
-      } catch {
-        setStatus("disconnected");
-        setTsharkAvailable(null);
       } finally {
         setLastChecked(new Date());
       }

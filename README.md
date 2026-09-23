@@ -6,6 +6,12 @@ TraceLens AI turns uploaded PCAP/PCAPNG files into readable protocol flows, dete
 
 ![TraceLens AI trace analyzer UI](docs/tracelens-ui-capture.png)
 
+TraceLens decodes a real GTPv2-C session-setup failure, matches it to a known cause code, and explains it -- offline by default, or via a connected AI provider of your choice:
+
+| Pick any AI provider (or none) | Live AI-generated explanation |
+| --- | --- |
+| ![Multi-provider AI configuration](docs/tracelens-ai-provider-settings.png) | ![OpenAI-generated explanation](docs/tracelens-ai-explanation.png) |
+
 ## 🚀 Quick Start
 
 **New to TraceLens? Start here:** [QUICK_START.md](QUICK_START.md)

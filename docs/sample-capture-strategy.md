@@ -28,6 +28,8 @@ Prefer captures that are:
 
 Avoid committing third-party PCAPs directly unless the license and redistribution terms are explicit. For most external captures, store only metadata and a download script.
 
+`samples/community/` is a deliberate, narrow exception: small, contributor-provided real S1AP/Diameter/GTP captures with no payload data beyond standard control-plane signaling, committed directly (see its own README.md for provenance and what each one verifies) so they're usable as regression fixtures without a download step. This is not the default -- prefer the metadata-plus-download-script approach above for anything larger or of uncertain provenance.
+
 ## Initial TraceLens Target Set
 
 | Area | Useful Wireshark Categories | TraceLens Use |

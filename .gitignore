@@ -14,3 +14,8 @@ samples/external/
 *.pcap
 *.pcapng
 samples/gtpc_pktgen.py
+
+# Real captures deliberately committed (not generated, not third-party
+# proprietary) for regression coverage -- see samples/community/README.md.
+!samples/community/*.pcap
+!samples/community/*.pcapng

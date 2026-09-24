@@ -13,7 +13,32 @@ def main() -> None:
     check_local_failure_rules()
     check_host_extraction()
     check_http_payload_redirect_extraction()
+    check_community_samples()
     print("PASS sample smoke tests")
+
+
+def check_community_samples() -> None:
+    """Real S1AP/Diameter/GTP captures committed under samples/community/
+    (not gitignored, unlike other *.pcap/*.pcapng -- see its README.md).
+    All were verified clean (every Diameter Result-Code is 2001) when
+    added, so this asserts the decoder still parses each one without
+    raising and still finds zero errors -- catching both parser
+    regressions and new false positives against real traffic."""
+    expected_event_counts = {
+        "nsa_connection.pcap": 70,
+        "inbound_roaming_01.pcapng": 240,
+        "gx_gy_combined_03.pcapng": 291,
+        "gx_gy_combined_05.pcapng": 152,
+        "gx_gy_combined_06.pcapng": 143,
+    }
+    community_dir = REPO_ROOT / "samples" / "community"
+    for filename, expected_count in expected_event_counts.items():
+        sample = community_dir / filename
+        events = decode_pcap(sample).events
+        assert len(events) == expected_count, f"{filename}: expected {expected_count} events, got {len(events)}"
+        analysis = analyze_events(events)
+        assert not analysis.errors, f"{filename}: expected 0 errors, got {[e['error'] for e in analysis.errors]}"
+    print("PASS community sample captures")
 
 
 def check_gtpv2_failure() -> None:

@@ -163,11 +163,20 @@ def normalize_packet(packet: dict) -> dict:
     if "ssh" in layers and "protocol" not in event:
         event.update({"protocol": "SSH", "message": "SSH traffic"})
 
+    # NAS-5GS/NAS-EPS ride as an opaque NAS-PDU inside NGAP/S1AP -- tshark
+    # nests their fields deep within the ngap/s1ap tree rather than as a
+    # sibling top-level layer, so detect them by field presence, not by key.
     if "ngap" in layers and "protocol" not in event:
-        event.update(normalize_ngap(layers["ngap"]))
+        if recursive_get(layers["ngap"], "nas-5gs.mm.message_type") is not None:
+            event.update(normalize_nas_5gs(layers["ngap"]))
+        else:
+            event.update(normalize_ngap(layers["ngap"]))
 
     if "s1ap" in layers and "protocol" not in event:
-        event.update(normalize_s1ap(layers["s1ap"]))
+        if recursive_get(layers["s1ap"], "nas-eps.nas_msg_emm_type") is not None:
+            event.update(normalize_nas_eps(layers["s1ap"]))
+        else:
+            event.update(normalize_s1ap(layers["s1ap"]))
 
     if "sctp" in layers and "protocol" not in event:
         event.update(normalize_sctp(layers["sctp"]))
@@ -1015,6 +1024,132 @@ def extract_ran_cause(value: dict, prefix: str) -> tuple[str, int] | None:
         if found is not None:
             return category, parse_int(found)
     return None
+
+
+# NAS-EPS (4G, 3GPP TS 24.301) and NAS-5GS (5G, 3GPP TS 24.501) ride as an
+# opaque NAS-PDU inside S1AP/NGAP. Their EARLY procedure messages --
+# Attach/Registration, Identity, Authentication, Security Mode -- are sent
+# before a security context exists and so are NOT ciphered, meaning
+# tshark can and does fully dissect them (later NAS messages, once
+# ciphered, remain opaque and are not handled here). These tables are
+# generated from `tshark -G values`, same as the NGAP/S1AP tables above.
+
+NAS_EPS_EMM_MESSAGE_NAMES = {
+    65: "Attach request", 66: "Attach accept", 67: "Attach complete", 68: "Attach reject",
+    69: "Detach request", 70: "Detach accept", 72: "Tracking area update request",
+    73: "Tracking area update accept", 74: "Tracking area update complete",
+    75: "Tracking area update reject", 76: "Extended service request",
+    77: "Control plane service request", 78: "Service reject", 79: "Service accept",
+    80: "GUTI reallocation command", 81: "GUTI reallocation complete",
+    82: "Authentication request", 83: "Authentication response", 84: "Authentication reject",
+    85: "Identity request", 86: "Identity response", 92: "Authentication failure",
+    93: "Security mode command", 94: "Security mode complete", 95: "Security mode reject",
+    96: "EMM status", 97: "EMM information", 98: "Downlink NAS transport",
+    99: "Uplink NAS transport", 100: "CS service notification",
+    104: "Downlink generic NAS transport", 105: "Uplink generic NAS transport",
+}
+
+NAS_EPS_EMM_CAUSE = {
+    2: "IMSI unknown in HSS", 3: "Illegal UE", 5: "IMEI not accepted", 6: "Illegal ME",
+    7: "EPS services not allowed", 8: "EPS services and non-EPS services not allowed",
+    9: "UE identity cannot be derived by the network", 10: "Implicitly detached",
+    11: "PLMN not allowed", 12: "Tracking Area not allowed",
+    13: "Roaming not allowed in this tracking area", 14: "EPS services not allowed in this PLMN",
+    15: "No Suitable Cells In tracking area", 16: "MSC temporarily not reachable",
+    17: "Network failure", 18: "CS domain not available", 19: "ESM failure", 20: "MAC failure",
+    21: "Synch failure", 22: "Congestion", 23: "UE security capabilities mismatch",
+    24: "Security mode rejected, unspecified", 25: "Not authorized for this CSG",
+    26: "Non-EPS authentication unacceptable", 31: "Redirection to 5GCN required",
+    35: "Requested service option not authorized in this PLMN",
+    36: "IAB-node operation not authorized", 39: "CS service temporarily not available",
+    40: "No EPS bearer context activated", 42: "Severe network failure",
+    78: "PLMN not allowed to operate at the present UE location",
+    95: "Semantically incorrect message", 96: "Invalid mandatory information",
+    97: "Message type non-existent or not implemented",
+    98: "Message type not compatible with the protocol state",
+    99: "Information element non-existent or not implemented", 100: "Conditional IE error",
+    101: "Message not compatible with the protocol state", 111: "Protocol error, unspecified",
+}
+
+NAS_5GS_MM_MESSAGE_NAMES = {
+    65: "Registration request", 66: "Registration accept", 67: "Registration complete",
+    68: "Registration reject", 69: "Deregistration request (UE originating)",
+    70: "Deregistration accept (UE originating)", 71: "Deregistration request (UE terminated)",
+    72: "Deregistration accept (UE terminated)", 76: "Service request", 77: "Service reject",
+    78: "Service accept", 79: "Control plane service request",
+    80: "Network slice-specific authentication command",
+    81: "Network slice-specific authentication complete",
+    82: "Network slice-specific authentication result", 84: "Configuration update command",
+    85: "Configuration update complete", 86: "Authentication request",
+    87: "Authentication response", 88: "Authentication reject", 89: "Authentication failure",
+    90: "Authentication result", 91: "Identity request", 92: "Identity response",
+    93: "Security mode command", 94: "Security mode complete", 95: "Security mode reject",
+    100: "5GMM status", 101: "Notification", 102: "Notification response",
+    103: "UL NAS transport", 104: "DL NAS transport", 105: "Relay key request",
+    106: "Relay key accept", 107: "Relay key reject", 108: "Relay authentication request",
+    109: "Relay authentication response",
+}
+
+NAS_5GS_MM_CAUSE = {
+    3: "Illegal UE", 5: "PEI not accepted", 6: "Illegal ME", 7: "5GS services not allowed",
+    9: "UE identity cannot be derived by the network", 10: "Implicitly deregistered",
+    11: "PLMN not allowed", 12: "Tracking area not allowed",
+    13: "Roaming not allowed in this tracking area", 15: "No suitable cells in tracking area",
+    20: "MAC failure", 21: "Synch failure", 22: "Congestion",
+    23: "UE security capabilities mismatch", 24: "Security mode rejected, unspecified",
+    26: "Non-5G authentication unacceptable", 27: "N1 mode not allowed",
+    28: "Restricted service area", 31: "Redirection to EPC required",
+    36: "IAB-node operation not authorized", 43: "LADN not available",
+    62: "No network slices available", 65: "Maximum number of PDU sessions reached",
+    67: "Insufficient resources for specific slice and DNN",
+    69: "Insufficient resources for specific slice", 71: "ngKSI already in use",
+    72: "Non-3GPP access to 5GCN not allowed", 73: "Serving network not authorized",
+    74: "Temporarily not authorized for this SNPN",
+    75: "Permanently not authorized for this SNPN",
+    76: "Not authorized for this CAG or authorized for CAG cells only",
+    77: "Wireline access area not allowed",
+    78: "PLMN not allowed to operate at the present UE location",
+    79: "UAS services not allowed",
+    80: "Disaster roaming for the determined PLMN with disaster condition not allowed",
+    81: "Selected N3IWF is not compatible with the allowed NSSAI",
+    82: "Selected TNGF is not compatible with the allowed NSSAI",
+    90: "Payload was not forwarded", 91: "DNN not supported or not subscribed in the slice",
+    92: "Insufficient user-plane resources for the PDU session",
+    93: "Onboarding services terminated", 94: "User plane positioning not authorized",
+    95: "Semantically incorrect message", 96: "Invalid mandatory information",
+    97: "Message type non-existent or not implemented",
+    98: "Message type not compatible with the protocol state",
+    99: "Information element non-existent or not implemented", 100: "Conditional IE error",
+    101: "Message not compatible with the protocol state", 111: "Protocol error, unspecified",
+}
+
+
+def normalize_nas_eps(s1ap: dict) -> dict:
+    message_type = parse_int(recursive_get(s1ap, "nas-eps.nas_msg_emm_type"))
+    cause = parse_int(recursive_get(s1ap, "nas-eps.emm.cause"))
+    message = NAS_EPS_EMM_MESSAGE_NAMES.get(message_type, f"EMM message {message_type}")
+
+    event: dict = {"protocol": "NAS-EPS", "message": message, "message_type": message_type}
+    if cause is not None:
+        cause_name = NAS_EPS_EMM_CAUSE.get(cause, str(cause))
+        event["cause_code"] = cause
+        event["cause_name"] = cause_name
+        event["message"] = f"{message} ({cause_name})"
+    return event
+
+
+def normalize_nas_5gs(ngap: dict) -> dict:
+    message_type = parse_int(recursive_get(ngap, "nas-5gs.mm.message_type"))
+    cause = parse_int(recursive_get(ngap, "nas-5gs.mm.5gmm_cause"))
+    message = NAS_5GS_MM_MESSAGE_NAMES.get(message_type, f"5GMM message {message_type}")
+
+    event: dict = {"protocol": "NAS-5GS", "message": message, "message_type": message_type}
+    if cause is not None:
+        cause_name = NAS_5GS_MM_CAUSE.get(cause, str(cause))
+        event["cause_code"] = cause
+        event["cause_name"] = cause_name
+        event["message"] = f"{message} ({cause_name})"
+    return event
 
 
 def normalize_ngap(ngap: dict) -> dict:

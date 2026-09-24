@@ -69,14 +69,14 @@ def analyze_events(
         # from the real enum value) becomes the displayed error name.
         if event.get("protocol") == "NGAP" and event.get("cause_category"):
             ngap_failure = lookup_error(error_codes, "ngap", event.get("cause_category"))
-            if ngap_failure:
+            if ngap_failure and not is_benign_cause(ngap_failure, event.get("cause_code")):
                 errors.append(
                     build_error(event, "NGAP", event.get("cause_code"), with_specific_name(ngap_failure, event))
                 )
 
         if event.get("protocol") == "S1AP" and event.get("cause_category"):
             s1ap_failure = lookup_error(error_codes, "s1ap", event.get("cause_category"))
-            if s1ap_failure:
+            if s1ap_failure and not is_benign_cause(s1ap_failure, event.get("cause_code")):
                 errors.append(
                     build_error(event, "S1AP", event.get("cause_code"), with_specific_name(s1ap_failure, event))
                 )
@@ -85,6 +85,23 @@ def analyze_events(
         radius_failure = lookup_error(error_codes, "radius", radius_code)
         if event.get("protocol") == "RADIUS" and radius_failure:
             errors.append(build_error(event, "RADIUS", radius_code, radius_failure))
+
+        # NAS-EPS/NAS-5GS only populate a cause code on reject/failure
+        # messages, so its mere presence (unlike NGAP/S1AP) is always a
+        # real failure signal -- no benign-value exclusion needed here.
+        if event.get("protocol") == "NAS-EPS" and event.get("cause_code") is not None:
+            nas_eps_failure = lookup_error(error_codes, "nas_eps", "cause")
+            if nas_eps_failure:
+                errors.append(
+                    build_error(event, "NAS-EPS", event.get("cause_code"), with_specific_name(nas_eps_failure, event))
+                )
+
+        if event.get("protocol") == "NAS-5GS" and event.get("cause_code") is not None:
+            nas_5gs_failure = lookup_error(error_codes, "nas_5gs", "cause")
+            if nas_5gs_failure:
+                errors.append(
+                    build_error(event, "NAS-5GS", event.get("cause_code"), with_specific_name(nas_5gs_failure, event))
+                )
 
     errors = sorted(errors, key=error_sort_key)
     error_frames = {err.get("frame") for err in errors}
@@ -145,6 +162,17 @@ def lookup_status_error(error_codes: dict, domain: str, code: object) -> dict | 
     return None
 
 
+def is_benign_cause(definition: dict, cause_code: object) -> bool:
+    """A Cause IE accompanies routine, expected outcomes (a normal release,
+    a successful handover trigger) just as often as it does real problems --
+    its mere presence isn't itself a failure signal. benign_codes lists the
+    numeric cause values, per category, that should not be flagged."""
+    try:
+        return int(cause_code) in definition.get("benign_codes", [])
+    except (TypeError, ValueError):
+        return False
+
+
 def with_specific_name(definition: dict, event: dict) -> dict:
     """NGAP/S1AP rules are keyed by cause *category* (5 total), but the
     error should display the specific cause name from this event (e.g.
@@ -186,6 +214,9 @@ def build_error_evidence(event: dict, protocol: str, code: object, name: str) ->
         return f"{message} reported {category} cause {code} ({name}) at frame {frame}."
     if protocol == "RADIUS":
         return f"RADIUS {name} (code {code}) observed at frame {frame}."
+    if protocol in {"NAS-EPS", "NAS-5GS"}:
+        message = event.get("message") or f"{protocol} message"
+        return f"{message} at frame {frame}."
     if protocol == "DNS":
         query = event.get("dns_query") or "query"
         return f"DNS response for {query} returned {name} at frame {frame}."
@@ -211,6 +242,8 @@ def build_error_evidence(event: dict, protocol: str, code: object, name: str) ->
 def error_sort_key(error: dict) -> tuple[int, int, int]:
     severity_score = {"critical": 0, "warning": 1, "info": 2}.get(str(error.get("severity")), 3)
     protocol_score = {
+        "NAS-EPS": 0,
+        "NAS-5GS": 0,
         "GTPv2-C": 0,
         "GTPv1-C": 0,
         "Diameter": 1,

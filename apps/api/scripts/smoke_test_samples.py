@@ -120,6 +120,24 @@ def check_local_failure_rules() -> None:
             "message": "RADIUS Access-Reject",
             "code": "3",
         },
+        {
+            "frame": 8,
+            "time": "8.0",
+            "protocol": "NAS-EPS",
+            "message": "Authentication failure (MAC failure)",
+            "message_type": 92,
+            "cause_code": 20,
+            "cause_name": "MAC failure",
+        },
+        {
+            "frame": 9,
+            "time": "9.0",
+            "protocol": "NAS-5GS",
+            "message": "Registration reject (Illegal UE)",
+            "message_type": 68,
+            "cause_code": 3,
+            "cause_name": "Illegal UE",
+        },
     ]
     analysis = analyze_events(events)
     names = {error["error"] for error in analysis.errors}
@@ -133,6 +151,8 @@ def check_local_failure_rules() -> None:
     assert "radio-resources-not-available" in names, "missing NGAP radioNetwork cause"
     assert "authentication-failure" in names, "missing S1AP nas cause"
     assert "RADIUS Access-Reject" in names, "missing RADIUS Access-Reject"
+    assert "MAC failure" in names, "missing NAS-EPS MAC failure"
+    assert "Illegal UE" in names, "missing NAS-5GS Illegal UE"
     assert "CPE Address Provisioning" in group_names, "missing DHCP procedure group"
     assert "Application Service Access" in group_names, "missing application access group"
     assert summary["failure_timeline"], "missing failure timeline"

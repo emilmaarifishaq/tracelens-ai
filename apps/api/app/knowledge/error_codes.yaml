@@ -409,6 +409,10 @@ ngap:
       - Check RAN-side (gNB) resource and capacity state for the cell involved.
       - Verify UE capability, QoS profile, and network slice compatibility with the requested service.
       - Check radio link quality and coverage around the reported timestamp.
+    # Cause values that are routine/expected outcomes, not failures --
+    # a Cause IE is present on many normal releases and handovers, not
+    # only on abnormal ones, so these must not be flagged as issues.
+    benign_codes: [2, 31, 32, 33]  # successful-handover, {ng-intra,ng-inter,xn}-system-handover-triggered
   transport:
     name: NGAP Transport Cause
     severity: critical
@@ -423,6 +427,7 @@ ngap:
     recommended_checks:
       - Check subscriber authentication and security context state in the AMF/UDM.
       - Verify the UE was not already deregistered or in an invalid mobility state.
+    benign_codes: [0, 2]  # normal-release, deregister
   protocol:
     name: NGAP Protocol Cause
     severity: critical
@@ -448,6 +453,7 @@ s1ap:
       - Check RAN-side (eNB) resource and capacity state for the cell involved.
       - Verify UE capability and QoS profile compatibility with the requested service.
       - Check radio link quality and coverage around the reported timestamp.
+    benign_codes: [2, 33, 34, 35]  # successful-handover, {s1-intra,s1-inter,x2}-system-handover-triggered
   transport:
     name: S1AP Transport Cause
     severity: critical
@@ -462,6 +468,7 @@ s1ap:
     recommended_checks:
       - Check subscriber authentication and security context state in the MME/HSS.
       - Verify the UE was not already detached or in an invalid mobility state.
+    benign_codes: [0, 2]  # normal-release, detach
   protocol:
     name: S1AP Protocol Cause
     severity: critical
@@ -499,3 +506,30 @@ radius:
     recommended_checks:
       - Verify the requested attribute changes are supported and valid for the identified session on this NAS.
       - Check the NAS's Dynamic Authorization Server support and shared secret.
+
+# NAS-EPS (4G, 3GPP TS 24.301) and NAS-5GS (5G, 3GPP TS 24.501) only carry
+# a cause IE on reject/failure message types (Attach/Registration Reject,
+# Authentication Reject/Failure, TAU Reject, Service Reject, Security Mode
+# Reject) -- unlike NGAP/S1AP's Cause, there's no "normal completion also
+# carries a cause" case, so presence of a cause code here always means a
+# real failure. The specific cause name (e.g. "MAC failure") is resolved
+# in decoder.py from the real enum value and becomes the displayed name.
+nas_eps:
+  cause:
+    name: NAS-EPS EMM Cause
+    severity: critical
+    root_cause: The UE or network rejected an EMM procedure (attach, authentication, tracking area update, or service request).
+    recommended_checks:
+      - Check subscriber provisioning, authentication vectors (Ki/OPc), and HSS state for this IMSI.
+      - Verify PLMN/roaming permissions and tracking area configuration.
+      - Correlate with the preceding request in the same NAS transaction to see which procedure was rejected and why.
+
+nas_5gs:
+  cause:
+    name: NAS-5GS 5GMM Cause
+    severity: critical
+    root_cause: The UE or network rejected a 5GMM procedure (registration, authentication, or service request).
+    recommended_checks:
+      - Check subscriber provisioning, authentication vectors, and UDM/AUSF state for this SUPI.
+      - Verify PLMN/roaming permissions, network slice (S-NSSAI), and tracking area configuration.
+      - Correlate with the preceding request in the same NAS transaction to see which procedure was rejected and why.

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clipboard,
   Clock3,
+  Download,
   ExternalLink,
   FileUp,
   Network,
@@ -14,7 +15,8 @@ import {
   Settings2,
   Shield,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { toPng } from "html-to-image";
+import { type RefObject, useMemo, useRef, useState } from "react";
 
 import { ApiStatus } from "@/components/ApiStatus";
 import { ProtocolFilter } from "@/components/ProtocolFilter";
@@ -110,6 +112,8 @@ export default function Home() {
   const [aiStatus, setAiStatus] = useState<"idle" | "analyzing" | "error">("idle");
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [chatGptStatus, setChatGptStatus] = useState<"idle" | "copied" | "error">("idle");
+  const ladderRef = useRef<HTMLDivElement>(null);
+  const [ladderExportStatus, setLadderExportStatus] = useState<"idle" | "exporting" | "error">("idle");
   const [aiConfig, setAiConfig] = useState<AIProviderConfig>({
     apiKey: "",
     provider: "rule-engine",
@@ -316,6 +320,37 @@ export default function Home() {
     window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
   }
 
+  async function exportLadderImage() {
+    const node = ladderRef.current;
+    if (!node) return;
+
+    setLadderExportStatus("exporting");
+
+    // The ladder scrolls internally (max-height + overflow: auto) so more
+    // than a screenful of events fit on screen -- export the whole flow,
+    // not just what's currently visible, by temporarily lifting that
+    // clipping before capturing.
+    const originalMaxHeight = node.style.maxHeight;
+    const originalOverflow = node.style.overflow;
+    node.style.maxHeight = "none";
+    node.style.overflow = "visible";
+
+    try {
+      const dataUrl = await toPng(node, { backgroundColor: "#ffffff", pixelRatio: 2 });
+      const baseName = (result?.filename || "trace").replace(/[^a-z0-9_-]+/gi, "_");
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = `tracelens-flow-ladder-${baseName}.png`;
+      link.click();
+      setLadderExportStatus("idle");
+    } catch {
+      setLadderExportStatus("error");
+    } finally {
+      node.style.maxHeight = originalMaxHeight;
+      node.style.overflow = originalOverflow;
+    }
+  }
+
   return (
     <main className="shell">
       <aside className="sidebar">
@@ -501,12 +536,21 @@ export default function Home() {
                 />
                 <span>Errors only</span>
               </label>
+              <button
+                onClick={exportLadderImage}
+                disabled={!ladderEvents.length || ladderExportStatus === "exporting"}
+              >
+                <Download size={16} />
+                {ladderExportStatus === "exporting" ? "Exporting" : "Export PNG"}
+              </button>
             </div>
           </div>
           <p className="ladderScope">
             Showing {ladderEvents.length} important flow events from {visibleEvents.length} matching decoded events.
+            {ladderExportStatus === "error" && <span className="errorText"> Export failed -- try again.</span>}
           </p>
           <Ladder
+            containerRef={ladderRef}
             events={ladderEvents}
             errorFrames={errorFrames}
             participants={participants}
@@ -966,12 +1010,14 @@ function AiAnalysisView({ analysis }: { analysis: AiAnalysis }) {
 }
 
 function Ladder({
+  containerRef,
   events,
   errorFrames,
   participants,
   selectedFrame,
   onSelectFrame,
 }: {
+  containerRef: RefObject<HTMLDivElement | null>;
   events: Array<Record<string, unknown>>;
   errorFrames: Set<string>;
   participants: Array<{ address: string; label: string }>;
@@ -991,7 +1037,7 @@ function Ladder({
   const gridTemplateColumns = `repeat(${Math.max(lanes.length, 1)}, minmax(160px, 1fr))`;
 
   return (
-    <div className="sequenceDiagram">
+    <div className="sequenceDiagram" ref={containerRef}>
       <div className="sequenceHeader" style={{ gridTemplateColumns }}>
         {lanes.map((participant) => (
           <div className="sequenceParticipant" key={participant.address}>

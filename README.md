@@ -47,12 +47,16 @@ Decoded with failure detection (root cause + recommended checks, not just labeli
 - GTPv1-C / GTPv2-C -- cause-code failure detection
 - PFCP -- cause-code failure detection
 - Diameter -- result-code failure detection
-- NGAP (5G RAN-CN, 3GPP TS 38.413) -- Cause IE failure detection across all 5 cause categories (radioNetwork/transport/nas/protocol/misc), verified against a real free5GC registration capture
+- NGAP (5G RAN-CN, 3GPP TS 38.413) -- Cause IE failure detection across all 5 cause categories (radioNetwork/transport/nas/protocol/misc), with routine/benign causes (e.g. successful-handover, normal-release) correctly excluded from failure detection
 - S1AP (4G eNB-MME, 3GPP TS 36.413) -- same Cause IE structure as NGAP
+- NAS-EPS (4G UE-MME, 3GPP TS 24.301) -- EMM cause detection (Attach/TAU/Service Reject, Authentication Reject/Failure) for the pre-security-context procedures tshark can dissect in the clear
+- NAS-5GS (5G UE-AMF, 3GPP TS 24.501) -- same, for 5GMM cause detection
 - RADIUS -- Access-Reject / Disconnect-NAK / CoA-NAK detection
 - DNS, HTTP, SIP, DHCP -- response-code failure detection
 - TCP -- reset and retransmission detection
 - TLS -- alert detection
+
+All of the above (except GTP/PFCP/Diameter, added earlier) were verified against real captures during development, including a genuine "wrong authentication key" (NAS-EPS MAC failure) and a first-attach SQN resync (NAS-EPS Synch failure) from real 4G attach traces, and a real free5GC 5G registration capture for NGAP.
 
 Decoded and labeled, not yet checked for failures:
 
@@ -60,10 +64,10 @@ Decoded and labeled, not yet checked for failures:
 - MQTT/QUIC/SSH traffic labeling
 - ARP, ICMP
 
-Not yet implemented (architecturally different from the binary-IE protocols above):
+Not yet implemented:
 
-- NAS EPS / NAS 5GS -- typically opaque/ciphered octet strings inside S1AP/NGAP containers, needs different handling than a flat cause-code lookup
 - HTTP/2 SBI (5G Service-Based Interface) -- 3GPP TS 29.500-series signaling carried as JSON bodies over HTTP/2, needs body inspection rather than binary IE parsing
+- Post-security-context NAS-EPS/NAS-5GS messages -- ciphered once a security context is established, so not decodable without key material the way the pre-security procedures above are
 - Any future protocol with a decoder and normalizer
 
 CPE and internet-access traces are supported at a starter level with readable DHCP, DNS, TCP, TLS, HTTP, MQTT, QUIC, SSH, ICMP, and ARP event labels plus basic DHCP/DNS/TCP/TLS/HTTP issue detection.

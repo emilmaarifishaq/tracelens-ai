@@ -265,10 +265,46 @@ def normalize_gtpv1(gtp: dict) -> dict:
     }
 
 
+# Generated from `tshark -G values` (diameter.cmd.code), not hand-transcribed.
+DIAMETER_COMMAND_NAMES = {
+    100: "Peer Information", 101: "Fetch Peers", 102: "Subscribe Change", 103: "Notify Change",
+    257: "Capabilities-Exchange", 258: "Re-Auth", 260: "AA-Mobile-Node", 262: "Home-Agent-MIP",
+    265: "AA", 268: "Diameter-EAP", 271: "Accounting", 272: "Credit-Control",
+    274: "Abort-Session", 275: "Session-Termination", 280: "Device-Watchdog", 282: "Disconnect-Peer",
+    283: "User-Authorization", 284: "Server-Assignment", 285: "Location-Info", 286: "Multimedia-Auth",
+    287: "Registration-Termination", 288: "Push-Profile", 300: "User-Authorization",
+    301: "Server-Assignment", 302: "Location-Info", 303: "Multimedia-Auth",
+    304: "Registration-Termination", 305: "Push-Profile", 306: "User-Data", 307: "Profile-Update",
+    308: "Subscribe-Notifications", 309: "Push-Notification", 310: "Boostrapping-Info",
+    311: "Message-Process", 312: "GBAPush-Info", 314: "Policy-Data", 315: "Policy-Install",
+    316: "3GPP-Update-Location", 317: "3GPP-Cancel-Location", 318: "3GPP-Authentication-Information",
+    319: "3GPP-Insert-Subscriber-Data", 320: "3GPP-Delete-Subscriber-Data", 321: "3GPP-Purge-UE",
+    322: "3GPP-Reset", 323: "3GPP-Notify", 324: "3GPP-ME-Identity-Check", 325: "MIP6",
+    326: "QoS-Authorization", 327: "QoS-Install", 328: "Capabilities-Update", 329: "IKEv2-SK",
+    330: "NAT-Control", 511: "Ping",
+}
+
+DIAMETER_CC_REQUEST_TYPES = {
+    1: "Initial", 2: "Update", 3: "Termination", 4: "Event",
+}
+
+
 def normalize_diameter(diameter: dict) -> dict:
+    command_code = parse_int(recursive_get(diameter, "diameter.cmd.code"))
+    is_request = recursive_get(diameter, "diameter.flags.request") == "1"
+    command_name = DIAMETER_COMMAND_NAMES.get(command_code, f"Command {command_code}")
+
+    message = f"{command_name} {'Request' if is_request else 'Answer'}"
+    if command_code == 272:  # Credit-Control
+        cc_request_type = DIAMETER_CC_REQUEST_TYPES.get(parse_int(recursive_get(diameter, "diameter.CC-Request-Type")))
+        if cc_request_type:
+            message = f"{message} ({cc_request_type})"
+
     return {
         "protocol": "Diameter",
-        "message": recursive_get(diameter, "diameter.cmd.code"),
+        "message": message,
+        "command_code": command_code,
+        "is_request": is_request,
         "session_id": recursive_get(diameter, "diameter.Session-Id"),
         "result_code": recursive_get(diameter, "diameter.Result-Code"),
         "experimental_result_code": recursive_get(diameter, "diameter.Experimental-Result-Code"),

@@ -291,7 +291,10 @@ def filter_events(events: list[dict], settings: dict) -> list[dict]:
 
     for event in events:
         message = str(event.get("message") or "")
-        if not show_heartbeats and message in {"Echo Request", "Echo Response", "Heartbeat Request", "Heartbeat Response"}:
+        if not show_heartbeats and message in {
+            "Echo Request", "Echo Response", "Heartbeat Request", "Heartbeat Response",
+            "Device-Watchdog Request", "Device-Watchdog Answer",
+        }:
             continue
 
         if hide_duplicate_pfcp and event.get("protocol") == "PFCP":

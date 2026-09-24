@@ -103,6 +103,13 @@ def analyze_events(
                     build_error(event, "NAS-5GS", event.get("cause_code"), with_specific_name(nas_5gs_failure, event))
                 )
 
+        if event.get("protocol") == "HTTP2-SBI" and event.get("cause_code"):
+            sbi_failure = lookup_error(error_codes, "http2_sbi", "problem")
+            if sbi_failure:
+                errors.append(
+                    build_error(event, "HTTP2-SBI", event.get("cause_code"), with_specific_name(sbi_failure, event))
+                )
+
     errors = sorted(errors, key=error_sort_key)
     error_frames = {err.get("frame") for err in errors}
     participants = build_participants(events, endpoint_mapping)
@@ -217,6 +224,13 @@ def build_error_evidence(event: dict, protocol: str, code: object, name: str) ->
     if protocol in {"NAS-EPS", "NAS-5GS"}:
         message = event.get("message") or f"{protocol} message"
         return f"{message} at frame {frame}."
+    if protocol == "HTTP2-SBI":
+        method = event.get("http_method")
+        uri = event.get("http_uri")
+        target = f"{method} {uri}" if method and uri else "the SBI request"
+        detail = event.get("sbi_problem_detail")
+        suffix = f" -- {detail}" if detail else ""
+        return f"Response to {target} returned {name} at frame {frame}{suffix}."
     if protocol == "DNS":
         query = event.get("dns_query") or "query"
         return f"DNS response for {query} returned {name} at frame {frame}."
@@ -246,6 +260,7 @@ def error_sort_key(error: dict) -> tuple[int, int, int]:
         "NAS-5GS": 0,
         "GTPv2-C": 0,
         "GTPv1-C": 0,
+        "HTTP2-SBI": 0,
         "Diameter": 1,
         "PFCP": 2,
         "NGAP": 3,

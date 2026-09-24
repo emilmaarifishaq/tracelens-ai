@@ -163,6 +163,16 @@ def check_local_failure_rules() -> None:
             "cause_code": 3,
             "cause_name": "Illegal UE",
         },
+        {
+            "frame": 10,
+            "time": "10.0",
+            "protocol": "HTTP2-SBI",
+            "message": "HTTP/2 SBI Response 404 (CONTEXT_NOT_FOUND)",
+            "http_status_code": "404",
+            "cause_code": "CONTEXT_NOT_FOUND",
+            "cause_name": "CONTEXT_NOT_FOUND",
+            "sbi_problem_detail": "SM context not found for the given ID",
+        },
     ]
     analysis = analyze_events(events)
     names = {error["error"] for error in analysis.errors}
@@ -178,6 +188,7 @@ def check_local_failure_rules() -> None:
     assert "RADIUS Access-Reject" in names, "missing RADIUS Access-Reject"
     assert "MAC failure" in names, "missing NAS-EPS MAC failure"
     assert "Illegal UE" in names, "missing NAS-5GS Illegal UE"
+    assert "CONTEXT_NOT_FOUND" in names, "missing HTTP2-SBI ProblemDetails cause"
     assert "CPE Address Provisioning" in group_names, "missing DHCP procedure group"
     assert "Application Service Access" in group_names, "missing application access group"
     assert summary["failure_timeline"], "missing failure timeline"

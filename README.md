@@ -52,11 +52,12 @@ Decoded with failure detection (root cause + recommended checks, not just labeli
 - NAS-EPS (4G UE-MME, 3GPP TS 24.301) -- EMM cause detection (Attach/TAU/Service Reject, Authentication Reject/Failure) for the pre-security-context procedures tshark can dissect in the clear
 - NAS-5GS (5G UE-AMF, 3GPP TS 24.501) -- same, for 5GMM cause detection
 - RADIUS -- Access-Reject / Disconnect-NAK / CoA-NAK detection
+- HTTP/2 SBI (5G Service-Based Interface, 3GPP TS 29.500-series) -- parses the JSON body of each request/response and detects a 3GPP ProblemDetails error object (the `cause`/`title`/`detail` fields any 5G core NF returns on failure), rather than binary IE parsing like the protocols above
 - DNS, HTTP, SIP, DHCP -- response-code failure detection
 - TCP -- reset and retransmission detection
 - TLS -- alert detection
 
-All of the above (except GTP/PFCP/Diameter, added earlier) were verified against real captures during development, including a genuine "wrong authentication key" (NAS-EPS MAC failure) and a first-attach SQN resync (NAS-EPS Synch failure) from real 4G attach traces, and a real free5GC 5G registration capture for NGAP.
+All of the above (except GTP/PFCP/Diameter, added earlier) were verified against real captures during development, including a genuine "wrong authentication key" (NAS-EPS MAC failure) and a first-attach SQN resync (NAS-EPS Synch failure) from real 4G attach traces, and a real free5GC 5G registration capture covering NGAP, NAS-5GS, and a full HTTP/2 SBI call flow (Namf, Nausf, Nudm, Nudr, Nsmf, Npcf) end to end.
 
 Decoded and labeled, not yet checked for failures:
 
@@ -66,7 +67,6 @@ Decoded and labeled, not yet checked for failures:
 
 Not yet implemented:
 
-- HTTP/2 SBI (5G Service-Based Interface) -- 3GPP TS 29.500-series signaling carried as JSON bodies over HTTP/2, needs body inspection rather than binary IE parsing
 - Post-security-context NAS-EPS/NAS-5GS messages -- ciphered once a security context is established, so not decodable without key material the way the pre-security procedures above are
 - Any future protocol with a decoder and normalizer
 

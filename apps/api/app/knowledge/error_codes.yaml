@@ -533,3 +533,20 @@ nas_5gs:
       - Check subscriber provisioning, authentication vectors, and UDM/AUSF state for this SUPI.
       - Verify PLMN/roaming permissions, network slice (S-NSSAI), and tracking area configuration.
       - Correlate with the preceding request in the same NAS transaction to see which procedure was rejected and why.
+
+# 5G Service-Based Interface (3GPP TS 29.500-series) errors use a JSON
+# ProblemDetails body, not a fixed numeric enum -- each NF API (TS 29.502
+# SMF, 29.503 UDM, 29.512 PCF, ...) defines its own "cause" string values,
+# so unlike the ASN.1-derived protocols above there's no single
+# authoritative table to draw from. The specific cause/title string is
+# resolved in decoder.py from the actual response body and becomes the
+# displayed error name.
+http2_sbi:
+  problem:
+    name: HTTP/2 SBI Problem Details
+    severity: critical
+    root_cause: The 5G core network function rejected or failed to process the SBI request (see the specific cause/title for the standardized reason).
+    recommended_checks:
+      - Check the responding network function's logs for this correlation/transaction at the reported timestamp.
+      - Verify the request body matches the expected 3GPP schema for this API and resource.
+      - Confirm the referenced subscriber, session, or context ID exists and is in the expected state on the responding NF.

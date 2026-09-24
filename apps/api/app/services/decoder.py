@@ -143,6 +143,9 @@ def normalize_packet(packet: dict) -> dict:
     if "http" in layers and "protocol" not in event:
         event.update(normalize_http(layers["http"]))
 
+    if "http2" in layers and "protocol" not in event:
+        event.update(normalize_http2(layers))
+
     if "tcp" in layers and "protocol" not in event:
         http_payload = normalize_http_from_tcp(tcp)
         if http_payload:
@@ -397,6 +400,79 @@ def normalize_http_from_tcp(tcp: dict) -> dict | None:
             "http_from_tcp_payload": True,
         }
 
+    return None
+
+
+def normalize_http2(layers: dict) -> dict:
+    """5G Service-Based Interface (3GPP TS 29.500-series) signaling rides
+    as JSON over HTTP/2. HTTP/2 splits a request/response into separate
+    HEADERS and DATA frames (each its own tshark packet), so unlike other
+    protocols here this produces one event per frame, not one per
+    exchange: a HEADERS frame yields method+path or a status code, and a
+    DATA frame carrying a JSON body is checked for a 3GPP ProblemDetails
+    error object.
+    """
+    http2 = layers.get("http2", {})
+    method = recursive_get(http2, "http2.headers.method")
+    path = recursive_get(http2, "http2.headers.path")
+    status = recursive_get(http2, "http2.headers.status")
+
+    body = None
+    json_layer = layers.get("json")
+    if json_layer is not None:
+        raw_body = recursive_get(json_layer, "json.object")
+        if raw_body:
+            try:
+                body = json.loads(raw_body)
+            except (json.JSONDecodeError, TypeError):
+                body = None
+
+    if not (method or path or status or body is not None):
+        # Pure HTTP/2 transport frame (SETTINGS, WINDOW_UPDATE, GOAWAY,
+        # connection preface) -- nothing SBI-specific to report, so leave
+        # "protocol" unset and let the generic TCP fallback handle it
+        # instead of drowning real signaling in transport-frame noise.
+        return {}
+
+    if method and path:
+        message = f"{method} {path}"
+    elif status:
+        message = f"HTTP/2 SBI Response {status}"
+    else:
+        message = "HTTP/2 SBI JSON body"
+
+    event: dict = {
+        "protocol": "HTTP2-SBI",
+        "message": message,
+        "http_method": method,
+        "http_uri": path,
+        "http_status_code": status,
+    }
+
+    problem = extract_sbi_problem_details(body)
+    if problem:
+        cause = problem.get("cause")
+        title = problem.get("title")
+        cause_name = cause or title or "SBI error"
+        event["cause_code"] = cause or str(problem.get("status") or "")
+        event["cause_name"] = cause_name
+        event["sbi_problem_detail"] = problem.get("detail")
+        event["message"] = f"{message} ({cause_name})"
+
+    return event
+
+
+def extract_sbi_problem_details(body: object) -> dict | None:
+    """3GPP TS 29.500 clause 5.2.7 ProblemDetails: an SBI error response
+    body carries a standardized machine-readable 'cause' string (e.g.
+    SUBSCRIBER_NOT_FOUND, CONTEXT_NOT_FOUND) and/or a 'status' >= 400
+    with 'title'/'detail'. A successful body has neither."""
+    if not isinstance(body, dict):
+        return None
+    cause = body.get("cause")
+    status = body.get("status")
+    if cause or (isinstance(status, int) and status >= 400):
+        return body
     return None
 
 

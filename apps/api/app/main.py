@@ -14,6 +14,7 @@ from app.services.analysis import analyze_events
 from app.services.decoder import DecodeError, decode_pcaps
 from app.services.endpoint_mapping import parse_endpoint_mapping
 from app.services.storage import save_upload
+from app.services.tshark import find_tshark
 
 app = FastAPI(title="TraceLens AI API", version="0.1.0")
 
@@ -32,25 +33,28 @@ def health() -> dict[str, str]:
 
 
 @app.get("/system/health")
-def system_health() -> dict[str, str | bool]:
+def system_health() -> dict[str, str | bool | None]:
     import subprocess
 
+    tshark_path = find_tshark()
     tshark_available = False
-    try:
-        result = subprocess.run(
-            ["tshark", "--version"],
-            capture_output=True,
-            timeout=5,
-            check=False
-        )
-        tshark_available = result.returncode == 0
-    except Exception:
-        tshark_available = False
+    if tshark_path:
+        try:
+            result = subprocess.run(
+                [tshark_path, "--version"],
+                capture_output=True,
+                timeout=5,
+                check=False
+            )
+            tshark_available = result.returncode == 0
+        except Exception:
+            tshark_available = False
 
     return {
         "status": "ok",
         "api": "ok",
-        "tshark_available": tshark_available
+        "tshark_available": tshark_available,
+        "tshark_path": tshark_path if tshark_available else None,
     }
 
 

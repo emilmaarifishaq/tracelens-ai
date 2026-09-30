@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from app.models.trace import DecodedTrace
 from app.services.raw_gtp import decode_gtp_from_pcap
+from app.services.tshark import find_tshark
 
 
 class DecodeError(RuntimeError):
@@ -34,7 +35,7 @@ def decode_pcap(
     path: Path, http2_ports: list[int] | None = None, keylog_path: Path | None = None
 ) -> DecodedTrace:
     command = [
-        "tshark",
+        find_tshark() or "tshark",
         "-r",
         str(path),
         "-T",
@@ -56,7 +57,7 @@ def decode_pcap(
         events = decode_gtp_from_pcap(path)
         if events:
             return DecodedTrace(trace_id=uuid4().hex, events=events)
-        raise DecodeError("TShark is not installed or not available in PATH") from exc
+        raise DecodeError("TShark is not installed or not available in PATH (install Wireshark with TShark, or set TSHARK_PATH)") from exc
     except subprocess.TimeoutExpired as exc:
         raise DecodeError("TShark decode timed out") from exc
 

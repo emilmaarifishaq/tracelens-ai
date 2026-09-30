@@ -476,6 +476,12 @@ sudo apt-get install wireshark
 # Restart terminal
 ```
 
+The API also checks the standard install locations (`C:\Program Files\Wireshark`,
+`/Applications/Wireshark.app/Contents/MacOS`, Homebrew, `/usr/bin`) even when
+`tshark` isn't on PATH. If Wireshark is installed somewhere else, set
+`TSHARK_PATH` in `.env` to the tshark executable or its folder, then restart the
+API. The web UI shows "TShark Available" once it's found.
+
 ### Port Already In Use
 
 ```bash

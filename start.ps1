@@ -23,6 +23,19 @@ Write-Host "[1/6] Checking dependencies..." -ForegroundColor Yellow
 
 $missingDeps = $false
 
+# Wireshark's installer doesn't add itself to PATH, so a working install is
+# often invisible to a bare `tshark` call. Add the standard folder to this
+# session's PATH (inherited by the API process) if tshark lives there.
+if (-not (Get-Command tshark -ErrorAction SilentlyContinue)) {
+    foreach ($dir in @("$env:ProgramFiles\Wireshark", "${env:ProgramFiles(x86)}\Wireshark")) {
+        if (Test-Path (Join-Path $dir "tshark.exe")) {
+            $env:Path = "$env:Path;$dir"
+            Write-Info "Found TShark in $dir (added to PATH for this session)"
+            break
+        }
+    }
+}
+
 @("node", "python", "tshark") | ForEach-Object {
     try {
         $version = & $_ --version 2>&1 | Select-Object -First 1

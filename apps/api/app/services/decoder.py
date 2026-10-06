@@ -1,5 +1,7 @@
 import json
+import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,21 +15,76 @@ class DecodeError(RuntimeError):
     pass
 
 
+def _get_max_workers() -> int:
+    """Calculate optimal worker count: CPU cores / 2, min 1, max 4."""
+    cpu_count = os.cpu_count() or 2
+    return max(1, min(4, cpu_count // 2))
+
+
+def _extract_timestamp(event: dict) -> float:
+    """Extract timestamp from event for sorting."""
+    time_val = event.get("time", 0)
+    return float(time_val) if time_val else 0
+
+
 def decode_pcaps(
     paths: list[Path], http2_ports: list[int] | None = None, keylog_path: Path | None = None
 ) -> DecodedTrace:
-    events = []
-    warnings = []
-    for path in paths:
-        decoded = decode_pcap(path, http2_ports=http2_ports, keylog_path=keylog_path)
-        for event in decoded.events:
-            event["capture_file"] = path.name
-            event["original_frame"] = event.get("frame")
-            event["frame"] = len(events) + 1
-            events.append(event)
-        warnings.extend(decoded.warnings)
+    """
+    Decode multiple PCAP files in parallel, then sort by packet timestamp.
 
-    return DecodedTrace(trace_id=uuid4().hex, events=events, warnings=warnings)
+    Smart parallel processing:
+    - Uses worker threads = CPU_cores / 2 (min 1, max 4)
+    - Processes multiple files concurrently
+    - Maintains chronological order of packets (by timestamp)
+    - Preserves original file names and frame numbers
+    """
+    if not paths:
+        return DecodedTrace(trace_id=uuid4().hex, events=[], warnings=[])
+
+    # Single file: no parallel overhead
+    if len(paths) == 1:
+        decoded = decode_pcap(paths[0], http2_ports=http2_ports, keylog_path=keylog_path)
+        for event in decoded.events:
+            event["capture_file"] = paths[0].name
+            event["original_frame"] = event.get("frame")
+        return DecodedTrace(trace_id=uuid4().hex, events=decoded.events, warnings=decoded.warnings)
+
+    # Multiple files: use smart parallel
+    all_events = []
+    all_warnings = []
+    max_workers = _get_max_workers()
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all decode tasks
+        future_to_path = {
+            executor.submit(
+                decode_pcap, path, http2_ports=http2_ports, keylog_path=keylog_path
+            ): path
+            for path in paths
+        }
+
+        # Collect results as they complete
+        for future in as_completed(future_to_path):
+            path = future_to_path[future]
+            try:
+                decoded = future.result()
+                for event in decoded.events:
+                    event["capture_file"] = path.name
+                    event["original_frame"] = event.get("frame")
+                all_events.extend(decoded.events)
+                all_warnings.extend(decoded.warnings)
+            except Exception as exc:
+                raise DecodeError(f"Failed to decode {path.name}: {str(exc)}") from exc
+
+    # Sort all events by timestamp to maintain chronological order
+    all_events.sort(key=_extract_timestamp)
+
+    # Re-number frames based on sorted order
+    for idx, event in enumerate(all_events, 1):
+        event["frame"] = idx
+
+    return DecodedTrace(trace_id=uuid4().hex, events=all_events, warnings=all_warnings)
 
 
 def decode_pcap(

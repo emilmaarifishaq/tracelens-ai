@@ -43,8 +43,25 @@ class FindingModel(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
 
 
+class InsightModel(BaseModel):
+    """AI-generated insight or recommendation from analysis."""
+
+    insight_type: str
+    priority: str
+    title: str
+    description: str
+    root_cause: str | None = None
+    recommended_actions: list[str] = Field(default_factory=list)
+    affected_kpis: list[str] = Field(default_factory=list)
+    related_findings: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    impact_score: float = 0.0
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
 class TraceAnalysis(BaseModel):
     errors: list[dict] = Field(default_factory=list)
     ai_context: dict = Field(default_factory=dict)
     kpi_metrics: KPIMetrics | None = None
     findings: list[FindingModel] = Field(default_factory=list)
+    insights: list[InsightModel] = Field(default_factory=list)

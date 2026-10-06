@@ -19,6 +19,24 @@ def load_procedure_rules() -> list[dict[str, Any]]:
     return data.get("procedure_groups", [])
 
 
+@lru_cache(maxsize=1)
+def load_ngap_causes() -> dict[str, dict[int, dict[str, Any]]]:
+    """Load NGAP cause classification (TS 38.413)."""
+    return load_yaml("ngap_causes.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_nas_5gs_causes() -> dict[str, dict[int, dict[str, Any]]]:
+    """Load NAS-5GS cause classification (TS 24.501)."""
+    return load_yaml("nas_5gs_causes.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_nas_eps_causes() -> dict[str, dict[int, dict[str, Any]]]:
+    """Load NAS-EPS cause classification (TS 24.301)."""
+    return load_yaml("nas_eps_causes.yaml")
+
+
 def load_yaml(filename: str) -> dict[str, Any]:
     path = KNOWLEDGE_DIR / filename
     with path.open() as file:

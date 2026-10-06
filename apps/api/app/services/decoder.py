@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from app.models.trace import DecodedTrace
 from app.services.raw_gtp import decode_gtp_from_pcap
+from app.services.knowledge import load_ngap_causes, load_nas_5gs_causes, load_nas_eps_causes
 
 
 class DecodeError(RuntimeError):
@@ -25,6 +26,45 @@ def _extract_timestamp(event: dict) -> float:
     """Extract timestamp from event for sorting."""
     time_val = event.get("time", 0)
     return float(time_val) if time_val else 0
+
+
+def _get_ngap_cause_class(category: str, code: int) -> str | None:
+    """Look up NGAP cause class from YAML definitions."""
+    try:
+        causes = load_ngap_causes()
+        if category in causes and code in causes[category]:
+            return causes[category][code].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_nas_5gs_cause_class(message_type: int | None, cause: int) -> tuple[str | None, str | None]:
+    """Look up NAS-5GS cause class from YAML definitions.
+    Returns (class, sub_class) tuple."""
+    try:
+        causes = load_nas_5gs_causes()
+        # NAS-5GS can be in 5GMM or 5GSM; try both
+        if cause in causes.get("5gmm_causes", {}):
+            definition = causes["5gmm_causes"][cause]
+            return (definition.get("class"), definition.get("sub_class"))
+        if cause in causes.get("5gsm_causes", {}):
+            definition = causes["5gsm_causes"][cause]
+            return (definition.get("class"), definition.get("sub_class"))
+    except Exception:
+        pass
+    return (None, None)
+
+
+def _get_nas_eps_cause_class(cause: int) -> str | None:
+    """Look up NAS-EPS cause class from YAML definitions."""
+    try:
+        causes = load_nas_eps_causes()
+        if "causes" in causes and cause in causes["causes"]:
+            return causes["causes"][cause].get("class")
+    except Exception:
+        pass
+    return None
 
 
 def decode_pcaps(
@@ -1303,6 +1343,7 @@ def normalize_nas_eps(s1ap: dict) -> dict:
         cause_name = NAS_EPS_EMM_CAUSE.get(cause, str(cause))
         event["cause_code"] = cause
         event["cause_name"] = cause_name
+        event["cause_class"] = _get_nas_eps_cause_class(cause)
         event["message"] = f"{message} ({cause_name})"
     return event
 
@@ -1317,6 +1358,10 @@ def normalize_nas_5gs(ngap: dict) -> dict:
         cause_name = NAS_5GS_MM_CAUSE.get(cause, str(cause))
         event["cause_code"] = cause
         event["cause_name"] = cause_name
+        cause_class, cause_subclass = _get_nas_5gs_cause_class(message_type, cause)
+        event["cause_class"] = cause_class
+        if cause_subclass:
+            event["cause_sub_class"] = cause_subclass
         event["message"] = f"{message} ({cause_name})"
     return event
 
@@ -1339,6 +1384,7 @@ def normalize_ngap(ngap: dict) -> dict:
         event["cause_category"] = category
         event["cause_code"] = code
         event["cause_name"] = NGAP_CAUSE_TABLES[category].get(code, str(code))
+        event["cause_class"] = _get_ngap_cause_class(category, code)
         event["message"] = f"{message} ({event['cause_name']})"
     return event
 
@@ -1361,6 +1407,7 @@ def normalize_s1ap(s1ap: dict) -> dict:
         event["cause_category"] = category
         event["cause_code"] = code
         event["cause_name"] = S1AP_CAUSE_TABLES[category].get(code, str(code))
+        event["cause_class"] = _get_ngap_cause_class(category, code)  # S1AP uses same tables as NGAP
         event["message"] = f"{message} ({event['cause_name']})"
     return event
 

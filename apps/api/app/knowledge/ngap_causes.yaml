@@ -1,0 +1,204 @@
+# NGAP Cause Classification (TS 38.413)
+# Classes: NORMAL, MOBILITY_NORMAL, ABNORMAL_RADIO, ABNORMAL_RESOURCE, ABNORMAL_TRANSPORT, ABNORMAL_PROTOCOL, ABNORMAL_CONFIG, HO_FAILURE, ADMIN, REVIEW
+
+radioNetwork:
+  0:
+    name: unspecified
+    class: REVIEW
+  1:
+    name: txnrelocoverall-expiry
+    class: HO_FAILURE
+  2:
+    name: successful-handover
+    class: MOBILITY_NORMAL
+  3:
+    name: release-due-to-ngran-generated-reason
+    class: REVIEW
+  4:
+    name: release-due-to-5gc-generated-reason
+    class: REVIEW
+  5:
+    name: handover-cancelled
+    class: HO_FAILURE
+  6:
+    name: partial-handover
+    class: HO_FAILURE
+  7:
+    name: ho-failure-in-target-5GC-ngran-node-or-target-system
+    class: HO_FAILURE
+  8:
+    name: ho-target-not-allowed
+    class: HO_FAILURE
+  9:
+    name: tngrelocoverall-expiry
+    class: HO_FAILURE
+  10:
+    name: tngrelocprep-expiry
+    class: HO_FAILURE
+  11:
+    name: cell-not-available
+    class: ABNORMAL_RADIO
+  12:
+    name: unknown-targetID
+    class: HO_FAILURE
+  13:
+    name: no-radio-resources-available-in-target-cell
+    class: HO_FAILURE
+  14:
+    name: unknown-local-UE-NGAP-ID
+    class: ABNORMAL_PROTOCOL
+  15:
+    name: inconsistent-remote-UE-NGAP-ID
+    class: ABNORMAL_PROTOCOL
+  16:
+    name: handover-desirable-for-radio-reason
+    class: MOBILITY_NORMAL
+  17:
+    name: time-critical-handover
+    class: MOBILITY_NORMAL
+  18:
+    name: resource-optimisation-handover
+    class: MOBILITY_NORMAL
+  19:
+    name: reduce-load-in-serving-cell
+    class: MOBILITY_NORMAL
+  20:
+    name: user-inactivity
+    class: NORMAL
+  21:
+    name: radio-connection-with-ue-lost
+    class: ABNORMAL_RADIO
+  22:
+    name: radio-resources-not-available
+    class: ABNORMAL_RESOURCE
+  23:
+    name: invalid-qos-combination
+    class: ABNORMAL_CONFIG
+  24:
+    name: failure-in-radio-interface-procedure
+    class: ABNORMAL_RADIO
+  25:
+    name: interaction-with-other-procedure
+    class: REVIEW
+  26:
+    name: unknown-PDU-session-ID
+    class: ABNORMAL_PROTOCOL
+  27:
+    name: unknown-qos-flow-ID
+    class: ABNORMAL_PROTOCOL
+  28:
+    name: multiple-PDU-session-ID-instances
+    class: ABNORMAL_PROTOCOL
+  29:
+    name: multiple-qos-flow-ID-instances
+    class: ABNORMAL_PROTOCOL
+  30:
+    name: encryption-and-or-integrity-protection-algorithms-not-supported
+    class: ABNORMAL_CONFIG
+  31:
+    name: ng-intra-system-handover-triggered
+    class: MOBILITY_NORMAL
+  32:
+    name: ng-inter-system-handover-triggered
+    class: MOBILITY_NORMAL
+  33:
+    name: xn-handover-triggered
+    class: MOBILITY_NORMAL
+  34:
+    name: not-supported-5QI-value
+    class: ABNORMAL_CONFIG
+  35:
+    name: ue-context-transfer
+    class: MOBILITY_NORMAL
+  36:
+    name: ims-voice-eps-fallback-or-rat-fallback-triggered
+    class: MOBILITY_NORMAL
+  37:
+    name: up-integrity-protection-not-possible
+    class: ABNORMAL_CONFIG
+  38:
+    name: up-confidentiality-protection-not-possible
+    class: ABNORMAL_CONFIG
+  39:
+    name: slice-not-supported
+    class: ABNORMAL_CONFIG
+  40:
+    name: ue-in-rrc-inactive-state-not-reachable
+    class: ABNORMAL_RADIO
+  41:
+    name: redirection
+    class: MOBILITY_NORMAL
+  42:
+    name: resources-not-available-for-the-slice
+    class: ABNORMAL_RESOURCE
+  43:
+    name: ue-max-integrity-protected-data-rate-reason
+    class: ABNORMAL_CONFIG
+  44:
+    name: release-due-to-cn-detected-mobility
+    class: MOBILITY_NORMAL
+
+transport:
+  0:
+    name: transport-resource-unavailable
+    class: ABNORMAL_TRANSPORT
+  1:
+    name: unspecified
+    class: ABNORMAL_TRANSPORT
+
+nas:
+  0:
+    name: normal-release
+    class: NORMAL
+  1:
+    name: authentication-failure
+    class: ABNORMAL_CONFIG
+  2:
+    name: deregister
+    class: NORMAL
+  3:
+    name: unspecified
+    class: REVIEW
+
+protocol:
+  0:
+    name: transfer-syntax-error
+    class: ABNORMAL_PROTOCOL
+  1:
+    name: abstract-syntax-error-reject
+    class: ABNORMAL_PROTOCOL
+  2:
+    name: abstract-syntax-error-ignore-and-notify
+    class: ABNORMAL_PROTOCOL
+  3:
+    name: message-not-compatible-with-receiver-state
+    class: ABNORMAL_PROTOCOL
+  4:
+    name: semantic-error
+    class: ABNORMAL_PROTOCOL
+  5:
+    name: unspecified
+    class: ABNORMAL_PROTOCOL
+  6:
+    name: abstract-syntax-error-falsely-constructed-message
+    class: ABNORMAL_PROTOCOL
+
+misc:
+  0:
+    name: control-processing-overload
+    class: ABNORMAL_RESOURCE
+  1:
+    name: not-enough-user-plane-processing-resources
+    class: ABNORMAL_RESOURCE
+  2:
+    name: hardware-failure
+    class: ABNORMAL_RESOURCE
+  3:
+    name: om-intervention
+    class: ADMIN
+  4:
+    name: unknown-PLMN-or-SNPN
+    class: ABNORMAL_CONFIG
+  5:
+    name: unspecified
+    class: REVIEW

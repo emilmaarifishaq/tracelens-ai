@@ -1,0 +1,223 @@
+# NAS-5GS Cause Classification (TS 24.501)
+# Sub-classes for 5GMM: SUBSCRIPTION_POLICY, IDENTITY_STATE, SECURITY_AUTH, CONGESTION_RESOURCE, ROUTING_CONFIG, PROTOCOL
+# Sub-classes for 5GSM: (similar, mapped to broader categories)
+
+5gmm_causes:
+  1:
+    name: Illegal UE
+    sub_class: SUBSCRIPTION_POLICY
+  3:
+    name: Illegal UE
+    sub_class: SUBSCRIPTION_POLICY
+  5:
+    name: PEI not accepted
+    sub_class: SUBSCRIPTION_POLICY
+  6:
+    name: Illegal ME
+    sub_class: SUBSCRIPTION_POLICY
+  7:
+    name: 5GS services not allowed
+    sub_class: SUBSCRIPTION_POLICY
+  9:
+    name: UE identity cannot be derived by the network
+    sub_class: IDENTITY_STATE
+  10:
+    name: Implicitly deregistered
+    sub_class: IDENTITY_STATE
+  11:
+    name: PLMN not allowed
+    sub_class: SUBSCRIPTION_POLICY
+  12:
+    name: Tracking area not allowed
+    sub_class: SUBSCRIPTION_POLICY
+  13:
+    name: Roaming not allowed in this tracking area
+    sub_class: SUBSCRIPTION_POLICY
+  15:
+    name: No suitable cells in tracking area
+    sub_class: SUBSCRIPTION_POLICY
+  20:
+    name: MAC failure
+    sub_class: SECURITY_AUTH
+  21:
+    name: Synch failure
+    sub_class: SECURITY_AUTH
+  22:
+    name: Congestion
+    sub_class: CONGESTION_RESOURCE
+  23:
+    name: UE security capabilities mismatch
+    sub_class: SECURITY_AUTH
+  24:
+    name: Security mode rejected, unspecified
+    sub_class: SECURITY_AUTH
+  26:
+    name: Non-5G authentication unacceptable
+    sub_class: SECURITY_AUTH
+  27:
+    name: N1 mode not allowed
+    sub_class: SUBSCRIPTION_POLICY
+  28:
+    name: Restricted service area
+    sub_class: SUBSCRIPTION_POLICY
+  31:
+    name: Redirection to EPC required
+    sub_class: ROUTING_CONFIG
+  43:
+    name: LADN not available
+    sub_class: ROUTING_CONFIG
+  62:
+    name: No network slices available
+    sub_class: CONGESTION_RESOURCE
+  65:
+    name: Maximum number of PDU sessions reached
+    sub_class: CONGESTION_RESOURCE
+  67:
+    name: Insufficient resources for specific slice and DNN
+    sub_class: CONGESTION_RESOURCE
+  69:
+    name: Insufficient resources for specific slice
+    sub_class: CONGESTION_RESOURCE
+  71:
+    name: ngKSI already in use
+    sub_class: SECURITY_AUTH
+  72:
+    name: Non-3GPP access not allowed
+    sub_class: SUBSCRIPTION_POLICY
+  73:
+    name: Serving network not authorized
+    sub_class: SUBSCRIPTION_POLICY
+  74:
+    name: SNPN not allowed
+    sub_class: SUBSCRIPTION_POLICY
+  75:
+    name: Requested SNPN not allowed
+    sub_class: SUBSCRIPTION_POLICY
+  76:
+    name: PLMN not allowed
+    sub_class: SUBSCRIPTION_POLICY
+  77:
+    name: CAG only registration allowed
+    sub_class: SUBSCRIPTION_POLICY
+  90:
+    name: Payload was not forwarded
+    sub_class: ROUTING_CONFIG
+  91:
+    name: DNN not supported or not subscribed in the slice
+    sub_class: ROUTING_CONFIG
+  92:
+    name: Insufficient user-plane resources for PDU session
+    sub_class: CONGESTION_RESOURCE
+  95:
+    name: Semantically incorrect message
+    sub_class: PROTOCOL
+  96:
+    name: Invalid mandatory information
+    sub_class: PROTOCOL
+  97:
+    name: Message type non-existent or not implemented
+    sub_class: PROTOCOL
+  98:
+    name: Message type not compatible with protocol state
+    sub_class: PROTOCOL
+  99:
+    name: Information element non-existent or not implemented
+    sub_class: PROTOCOL
+  100:
+    name: Conditional IE error
+    sub_class: PROTOCOL
+  101:
+    name: Message not compatible with protocol state
+    sub_class: PROTOCOL
+  111:
+    name: Protocol error, unspecified
+    sub_class: PROTOCOL
+
+5gsm_causes:
+  26:
+    name: Insufficient resources
+    class: CONGESTION_RESOURCE
+  27:
+    name: Missing or unknown DNN
+    class: SUBSCRIPTION_POLICY
+  28:
+    name: Unknown PDU session type
+    class: SUBSCRIPTION_POLICY
+  29:
+    name: User authentication or authorization failed
+    class: SUBSCRIPTION_POLICY
+  31:
+    name: Request rejected, unspecified
+    class: PROTOCOL
+  32:
+    name: Service option not supported
+    class: SUBSCRIPTION_POLICY
+  33:
+    name: Requested service option not subscribed
+    class: SUBSCRIPTION_POLICY
+  36:
+    name: Regular deactivation
+    class: NORMAL
+  39:
+    name: Reactivation requested
+    class: NORMAL
+  46:
+    name: Out of LADN service area
+    class: SUBSCRIPTION_POLICY
+  50:
+    name: PDU session type IPv4 only allowed
+    class: SUBSCRIPTION_POLICY
+  51:
+    name: PDU session type IPv6 only allowed
+    class: SUBSCRIPTION_POLICY
+  54:
+    name: PDU session does not exist
+    class: PROTOCOL
+  67:
+    name: Insufficient resources for specific slice and DNN
+    class: CONGESTION_RESOURCE
+  68:
+    name: Not supported SSC mode
+    class: SUBSCRIPTION_POLICY
+  69:
+    name: Insufficient resources for specific slice
+    class: CONGESTION_RESOURCE
+  70:
+    name: Missing or unknown DNN in a slice
+    class: SUBSCRIPTION_POLICY
+  81:
+    name: Invalid PTI value
+    class: PROTOCOL
+  83:
+    name: Semantic error in the TFT operation
+    class: PROTOCOL
+  84:
+    name: Syntactic error in the TFT operation
+    class: PROTOCOL
+  85:
+    name: Invalid mapped EPS bearer identity
+    class: PROTOCOL
+  95:
+    name: Semantically incorrect message
+    class: PROTOCOL
+  96:
+    name: Invalid mandatory information
+    class: PROTOCOL
+  97:
+    name: Message type non-existent or not implemented
+    class: PROTOCOL
+  98:
+    name: Message type not compatible with protocol state
+    class: PROTOCOL
+  99:
+    name: Information element non-existent or not implemented
+    class: PROTOCOL
+  100:
+    name: Conditional IE error
+    class: PROTOCOL
+  101:
+    name: Message not compatible with protocol state
+    class: PROTOCOL
+  111:
+    name: Protocol error, unspecified
+    class: PROTOCOL

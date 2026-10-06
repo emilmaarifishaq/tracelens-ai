@@ -1,0 +1,106 @@
+# NAS-EPS Cause Classification (TS 24.301)
+# Note: EPS is legacy (4G); included for backward compatibility
+
+causes:
+  2:
+    name: IMSI unknown in HSS
+    class: SUBSCRIPTION_POLICY
+  3:
+    name: Illegal UE
+    class: SUBSCRIPTION_POLICY
+  4:
+    name: Imei not accepted
+    class: SUBSCRIPTION_POLICY
+  5:
+    name: Illegal ME
+    class: SUBSCRIPTION_POLICY
+  6:
+    name: EPS services not allowed
+    class: SUBSCRIPTION_POLICY
+  7:
+    name: EPS services and non-EPS services not allowed
+    class: SUBSCRIPTION_POLICY
+  8:
+    name: UE identity cannot be derived by the network
+    class: IDENTITY_STATE
+  9:
+    name: Implicitly deregistered
+    class: IDENTITY_STATE
+  10:
+    name: PLMN not allowed
+    class: SUBSCRIPTION_POLICY
+  11:
+    name: Tracking area not allowed
+    class: SUBSCRIPTION_POLICY
+  12:
+    name: Roaming not allowed in this tracking area
+    class: SUBSCRIPTION_POLICY
+  13:
+    name: EPS services not allowed in this PLMN
+    class: SUBSCRIPTION_POLICY
+  14:
+    name: No suitable cells in tracking area
+    class: SUBSCRIPTION_POLICY
+  15:
+    name: MAC failure
+    class: SECURITY_AUTH
+  16:
+    name: Synch failure
+    class: SECURITY_AUTH
+  17:
+    name: Congestion
+    class: CONGESTION_RESOURCE
+  18:
+    name: UE security capabilities mismatch
+    class: SECURITY_AUTH
+  19:
+    name: Security mode rejected, unspecified
+    class: SECURITY_AUTH
+  20:
+    name: Non-EPS authentication unacceptable
+    class: SECURITY_AUTH
+  21:
+    name: Network failure
+    class: ABNORMAL_TRANSPORT
+  25:
+    name: Semantically incorrect message
+    class: PROTOCOL
+  26:
+    name: Invalid mandatory information
+    class: PROTOCOL
+  27:
+    name: Message type non-existent or not implemented
+    class: PROTOCOL
+  28:
+    name: Message type not compatible with protocol state
+    class: PROTOCOL
+  29:
+    name: Information element non-existent or not implemented
+    class: PROTOCOL
+  30:
+    name: Conditional IE error
+    class: PROTOCOL
+  31:
+    name: Message not compatible with protocol state
+    class: PROTOCOL
+  32:
+    name: Protocol error, unspecified
+    class: PROTOCOL
+  95:
+    name: Maximum number of EPS bearers reached
+    class: CONGESTION_RESOURCE
+  96:
+    name: Requested APN not supported in the current RAT and PLMN combination
+    class: SUBSCRIPTION_POLICY
+  99:
+    name: Requested service not subscribed
+    class: SUBSCRIPTION_POLICY
+  100:
+    name: PTI already in use
+    class: PROTOCOL
+  101:
+    name: Regular deactivation
+    class: NORMAL
+  111:
+    name: Protocol error, unspecified
+    class: PROTOCOL

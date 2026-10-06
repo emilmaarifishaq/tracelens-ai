@@ -8,7 +8,9 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from app.models.trace import DecodedTrace
+from app.models.ue_context import EventType
 from app.services.raw_gtp import decode_gtp_from_pcap
+from app.services.ue_manager import UEContextManager
 from app.services.knowledge import (
     load_ngap_causes,
     load_nas_5gs_causes,
@@ -213,6 +215,200 @@ def _get_mqtt_cause_class(code: int) -> str | None:
     return None
 
 
+def _extract_initial_ue_message(event: dict) -> dict | None:
+    """Extract IMSI and RAN-UE-NGAP-ID from InitialUEMessage.
+
+    Returns:
+        Dict with 'ran_ue_id' and 'imsi', or None if not an InitialUEMessage
+    """
+    if "ngap" not in event.get("raw_layers", []):
+        return None
+
+    ngap_type = event.get("ngap_type")
+    if ngap_type != "InitialUEMessage":
+        return None
+
+    # Extract RAN-UE-NGAP-ID and IMSI (comes from NAS PDU parsing)
+    return {
+        "ran_ue_id": event.get("ngap_ran_ue_id"),
+        "imsi": event.get("nas_5gs_imsi"),  # May be None initially
+    }
+
+
+def _extract_nas_registration(event: dict) -> dict | None:
+    """Extract NAS Registration Complete with cause.
+
+    Returns:
+        Dict with registration details, or None if not a Registration message
+    """
+    if "nas-5gs" not in event.get("raw_layers", []):
+        return None
+
+    message_type = event.get("nas_5gs_type")
+    if message_type not in ["RegistrationComplete", "RegistrationReject"]:
+        return None
+
+    success = message_type == "RegistrationComplete"
+    cause_code = event.get("nas_5gs_cause")
+    cause_class, cause_sub = _get_nas_5gs_cause_class(None, cause_code) if cause_code else (None, None)
+
+    return {
+        "success": success,
+        "cause_class": cause_class,
+        "cause_sub_class": cause_sub,
+        "imsi": event.get("nas_5gs_imsi"),
+    }
+
+
+def _extract_ics_response(event: dict) -> dict | None:
+    """Extract Initial Context Setup response with cause.
+
+    Returns:
+        Dict with ICS details, or None if not an ICS response
+    """
+    if "ngap" not in event.get("raw_layers", []):
+        return None
+
+    ngap_type = event.get("ngap_type")
+    if ngap_type not in ["InitialContextSetupResponse", "InitialContextSetupFailure"]:
+        return None
+
+    success = ngap_type == "InitialContextSetupResponse"
+    cause_code = event.get("ngap_cause_code")
+    cause_category = event.get("ngap_cause_category")
+    cause_class = _get_ngap_cause_class(cause_category, cause_code) if cause_category and cause_code else None
+
+    return {
+        "success": success,
+        "cause_class": cause_class,
+        "cause_code": cause_code,
+        "cause_category": cause_category,
+    }
+
+
+def _extract_pdu_session_setup(event: dict) -> dict | None:
+    """Extract PDU Session Establishment Complete/Reject with cause.
+
+    Returns:
+        Dict with PDU session details, or None if not a PDU setup message
+    """
+    if "nas-5gs" not in event.get("raw_layers", []):
+        return None
+
+    message_type = event.get("nas_5gs_type")
+    if message_type not in ["PDUSessionEstablishmentComplete", "PDUSessionEstablishmentReject"]:
+        return None
+
+    success = message_type == "PDUSessionEstablishmentComplete"
+    pdu_session_id = event.get("nas_5gs_pdu_session_id")
+    cause_code = event.get("nas_5gs_cause")
+    cause_class, _ = _get_nas_5gs_cause_class(None, cause_code) if cause_code else (None, None)
+
+    return {
+        "success": success,
+        "pdu_session_id": pdu_session_id,
+        "cause_class": cause_class,
+    }
+
+
+def _extract_release(event: dict) -> dict | None:
+    """Extract UE Release/Deregistration message.
+
+    Returns:
+        Dict with release details, or None if not a release message
+    """
+    # Check for NGAP Release
+    if "ngap" in event.get("raw_layers", []):
+        ngap_type = event.get("ngap_type")
+        if ngap_type == "UEContextReleaseComplete":
+            cause_code = event.get("ngap_cause_code")
+            cause_category = event.get("ngap_cause_category")
+            cause_class = _get_ngap_cause_class(cause_category, cause_code) if cause_category and cause_code else None
+            return {"cause_class": cause_class, "message_type": "ue_context_release"}
+
+    # Check for NAS Deregistration
+    if "nas-5gs" in event.get("raw_layers", []):
+        message_type = event.get("nas_5gs_type")
+        if message_type == "DeregistrationComplete":
+            cause_code = event.get("nas_5gs_cause")
+            cause_class, _ = _get_nas_5gs_cause_class(None, cause_code) if cause_code else (None, None)
+            return {"cause_class": cause_class, "message_type": "deregistration_complete"}
+
+    return None
+
+
+def _build_ue_contexts(events: list[dict], manager: UEContextManager) -> None:
+    """Build UE contexts from decoded trace events.
+
+    Processes all lifecycle events and feeds them to the UEContextManager
+    to build complete UE lifecycle tracking with immutable event logs.
+
+    Args:
+        events: List of normalized packet events
+        manager: UEContextManager to populate
+    """
+    for event in events:
+        frame = event.get("frame", 0)
+        time = event.get("time", 0.0)
+
+        # Check for InitialUEMessage
+        initial_ue = _extract_initial_ue_message(event)
+        if initial_ue and initial_ue.get("ran_ue_id") is not None:
+            manager.add_initial_ue_message(
+                frame=frame,
+                time=time,
+                ran_ue_id=initial_ue["ran_ue_id"],
+                imsi=initial_ue.get("imsi"),
+            )
+
+        # Check for NAS Registration
+        registration = _extract_nas_registration(event)
+        if registration:
+            manager.add_registration(
+                ran_ue_id=event.get("ngap_ran_ue_id"),
+                imsi=registration.get("imsi"),
+                frame=frame,
+                time=time,
+                cause_class=registration.get("cause_class"),
+                success=registration.get("success"),
+            )
+
+        # Check for ICS Response
+        ics = _extract_ics_response(event)
+        if ics:
+            manager.add_ics(
+                ran_ue_id=event.get("ngap_ran_ue_id"),
+                frame=frame,
+                time=time,
+                cause_class=ics.get("cause_class"),
+                success=ics.get("success"),
+                details={"cause_code": ics.get("cause_code"), "cause_category": ics.get("cause_category")},
+            )
+
+        # Check for PDU Session Setup
+        pdu = _extract_pdu_session_setup(event)
+        if pdu:
+            manager.add_pdu_session_setup(
+                ran_ue_id=event.get("ngap_ran_ue_id"),
+                frame=frame,
+                time=time,
+                cause_class=pdu.get("cause_class"),
+                success=pdu.get("success"),
+                pdu_session_id=pdu.get("pdu_session_id"),
+            )
+
+        # Check for Release
+        release = _extract_release(event)
+        if release:
+            manager.add_release(
+                ran_ue_id=event.get("ngap_ran_ue_id"),
+                imsi=event.get("nas_5gs_imsi"),
+                frame=frame,
+                time=time,
+                cause_class=release.get("cause_class"),
+            )
+
+
 def decode_pcaps(
     paths: list[Path], http2_ports: list[int] | None = None, keylog_path: Path | None = None
 ) -> DecodedTrace:
@@ -226,7 +422,7 @@ def decode_pcaps(
     - Preserves original file names and frame numbers
     """
     if not paths:
-        return DecodedTrace(trace_id=uuid4().hex, events=[], warnings=[])
+        return DecodedTrace(trace_id=uuid4().hex, events=[], warnings=[], ue_contexts=[])
 
     # Single file: no parallel overhead
     if len(paths) == 1:
@@ -234,11 +430,17 @@ def decode_pcaps(
         for event in decoded.events:
             event["capture_file"] = paths[0].name
             event["original_frame"] = event.get("frame")
-        return DecodedTrace(trace_id=uuid4().hex, events=decoded.events, warnings=decoded.warnings)
+        return DecodedTrace(
+            trace_id=uuid4().hex,
+            events=decoded.events,
+            warnings=decoded.warnings,
+            ue_contexts=decoded.ue_contexts,
+        )
 
     # Multiple files: use smart parallel
     all_events = []
     all_warnings = []
+    ue_manager = UEContextManager()
     max_workers = _get_max_workers()
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -270,7 +472,15 @@ def decode_pcaps(
     for idx, event in enumerate(all_events, 1):
         event["frame"] = idx
 
-    return DecodedTrace(trace_id=uuid4().hex, events=all_events, warnings=all_warnings)
+    # Build UE contexts from sorted events
+    _build_ue_contexts(all_events, ue_manager)
+
+    return DecodedTrace(
+        trace_id=uuid4().hex,
+        events=all_events,
+        warnings=all_warnings,
+        ue_contexts=ue_manager.get_all_contexts(),
+    )
 
 
 def decode_pcap(
@@ -298,7 +508,7 @@ def decode_pcap(
     except FileNotFoundError as exc:
         events = decode_gtp_from_pcap(path)
         if events:
-            return DecodedTrace(trace_id=uuid4().hex, events=events)
+            return DecodedTrace(trace_id=uuid4().hex, events=events, ue_contexts=[])
         raise DecodeError("TShark is not installed or not available in PATH") from exc
     except subprocess.TimeoutExpired as exc:
         raise DecodeError("TShark decode timed out") from exc
@@ -324,10 +534,17 @@ def decode_pcap(
             raise DecodeError(warnings[0]) from exc
         raise DecodeError("TShark returned invalid JSON") from exc
 
+    events = [normalize_packet(packet) for packet in packets]
+
+    # Build UE contexts from events
+    ue_manager = UEContextManager()
+    _build_ue_contexts(events, ue_manager)
+
     return DecodedTrace(
         trace_id=uuid4().hex,
-        events=[normalize_packet(packet) for packet in packets],
+        events=events,
         warnings=warnings,
+        ue_contexts=ue_manager.get_all_contexts(),
     )
 
 

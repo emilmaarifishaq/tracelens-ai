@@ -97,6 +97,13 @@ class UEContextManager:
         ctx.initial_frame = frame
         ctx.initial_time = time
 
+        ctx.add_event(
+            event_type=EventType.INITIAL_UE_MESSAGE,
+            frame=frame,
+            time=time,
+            **(details or {})
+        )
+
         self.by_initial_frame[frame] = ctx
 
         return ctx

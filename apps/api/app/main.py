@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +13,7 @@ load_dotenv()
 
 from app.services.ai_analysis import explain_trace_context
 from app.services.analysis import analyze_events
+from app.services.compression import extract_compressed_file, get_file_type
 from app.services.decoder import DecodeError, decode_pcaps
 from app.services.endpoint_mapping import parse_endpoint_mapping
 from app.services.storage import save_upload
@@ -69,15 +72,39 @@ async def upload_trace(
         uploads.append(file)
 
     if not uploads:
-        raise HTTPException(status_code=400, detail="Upload at least one PCAP, PCAPNG, or CAP file")
+        raise HTTPException(status_code=400, detail="Upload at least one PCAP, PCAPNG, CAP, or compressed file (ZIP, TAR, 7Z)")
+
+    pcap_paths = []
+    uploaded_filenames = []
+    extract_dir = Path("uploads") / "extracted"
 
     for upload in uploads:
         if not upload.filename:
             raise HTTPException(status_code=400, detail="Missing filename")
-        if not upload.filename.endswith((".pcap", ".pcapng", ".cap")):
-            raise HTTPException(status_code=400, detail="Only PCAP, PCAPNG, or CAP files are supported")
 
-    pcap_paths = [await save_upload(upload) for upload in uploads]
+        file_type = get_file_type(upload.filename)
+
+        if file_type == "pcap":
+            pcap_paths.append(await save_upload(upload))
+            uploaded_filenames.append(upload.filename)
+
+        elif file_type == "compressed":
+            try:
+                extracted = await extract_compressed_file(upload, extract_dir)
+                pcap_paths.extend(extracted)
+                uploaded_filenames.append(f"{upload.filename} (extracted {len(extracted)} files)")
+            except (ValueError, ImportError) as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {upload.filename}. Supported: PCAP, PCAPNG, CAP, ZIP, TAR, 7Z"
+            )
+
+    if not pcap_paths:
+        raise HTTPException(status_code=400, detail="No valid PCAP files found in uploads")
+
     ports = normalize_ports(http2_ports)
     endpoint_mapping = await parse_endpoint_mapping(mapping_file)
     keylog_path = await save_upload(keylog_file) if keylog_file is not None else None
@@ -95,8 +122,8 @@ async def upload_trace(
     analysis = await run_in_threadpool(analyze_events, decoded.events, endpoint_mapping=endpoint_mapping, settings=settings)
     return {
         "trace_id": decoded.trace_id,
-        "filename": ", ".join(upload.filename or "trace.pcap" for upload in uploads),
-        "file_count": len(uploads),
+        "filename": ", ".join(uploaded_filenames),
+        "file_count": len(pcap_paths),
         "event_count": analysis.ai_context["trace_summary"]["event_count"],
         "raw_event_count": len(decoded.events),
         "events": analysis.ai_context["events"][:300],

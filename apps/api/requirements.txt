@@ -4,3 +4,4 @@ python-multipart==0.0.20
 python-dotenv==1.0.1
 pydantic==2.11.7
 PyYAML==6.0.3
+py7zr==0.20.8

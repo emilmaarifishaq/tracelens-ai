@@ -400,14 +400,17 @@ export default function Home() {
         <section className="uploadPanel">
           <label>
             <FileUp size={28} />
-            <span>{files.length ? files.map((item) => item.name).join(", ") : "Choose PCAP / PCAPNG"}</span>
+            <span>{files.length ? files.map((item) => item.name).join(", ") : "Choose PCAP or Compressed Archive"}</span>
             <input
               type="file"
               multiple
-              accept=".pcap,.pcapng,.cap"
+              accept=".pcap,.pcapng,.cap,.zip,.tar,.tar.gz,.tgz,.7z"
               onChange={(event) => setFiles(Array.from(event.target.files || []))}
             />
           </label>
+          <p style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+            Supported: PCAP, PCAPNG, CAP, ZIP, TAR, TAR.GZ, 7Z
+          </p>
           {status === "error" && (
             <p className="errorText">{uploadError || "Decode failed. Check API status and TShark availability."}</p>
           )}

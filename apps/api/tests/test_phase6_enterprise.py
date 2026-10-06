@@ -419,17 +419,22 @@ class TestAuditLogger:
 
     def test_audit_log_ordering(self):
         """Test logs are ordered by timestamp descending."""
+        import time
         log1 = AuditLogger.log_action(
             "tenant_1", "action_1", "resource", "res_1"
         )
+        time.sleep(0.01)
         log2 = AuditLogger.log_action(
             "tenant_1", "action_2", "resource", "res_2"
         )
+        time.sleep(0.01)
         log3 = AuditLogger.log_action(
             "tenant_1", "action_3", "resource", "res_3"
         )
 
         logs = AuditLogger.get_logs("tenant_1")
+        assert len(logs) == 3
+        # Most recent should be first (reverse chronological)
         assert logs[0].action == "action_3"
         assert logs[1].action == "action_2"
         assert logs[2].action == "action_1"

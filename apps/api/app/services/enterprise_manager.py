@@ -273,6 +273,7 @@ class AuditLogger:
     """Manages audit trail logging."""
 
     _logs: list[AuditLog] = []
+    _log_index: int = 0
 
     @staticmethod
     def log_action(
@@ -319,13 +320,17 @@ class AuditLogger:
         )
 
         AuditLogger._logs.append(log)
+        AuditLogger._log_index += 1
         return log
 
     @staticmethod
     def get_logs(tenant_id: str, limit: int = 100) -> list[AuditLog]:
         """Get audit logs for a tenant."""
         logs = [l for l in AuditLogger._logs if l.tenant_id == tenant_id]
-        return sorted(logs, key=lambda l: l.timestamp, reverse=True)[:limit]
+        # Sort by timestamp descending, then by insertion order (reverse) as tiebreaker
+        indexed_logs = [(i, l) for i, l in enumerate(AuditLogger._logs) if l.tenant_id == tenant_id]
+        sorted_logs = sorted(indexed_logs, key=lambda x: (x[1].timestamp, x[0]), reverse=True)
+        return [l for _, l in sorted_logs][:limit]
 
     @staticmethod
     def get_user_logs(tenant_id: str, user_id: str, limit: int = 50) -> list[AuditLog]:
@@ -354,6 +359,7 @@ class AuditLogger:
     def clear_all() -> None:
         """Clear all audit logs."""
         AuditLogger._logs.clear()
+        AuditLogger._log_index = 0
 
 
 class SLATracker:

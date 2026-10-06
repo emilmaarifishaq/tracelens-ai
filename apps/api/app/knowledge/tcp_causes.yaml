@@ -1,0 +1,15 @@
+# TCP Condition Classification
+
+tcp:
+  "RST":
+    name: Reset
+    class: ABNORMAL_TRANSPORT
+  "retransmission":
+    name: Retransmission
+    class: ABNORMAL_TRANSPORT
+  "duplicate":
+    name: Duplicate
+    class: ABNORMAL_TRANSPORT
+  "out-of-order":
+    name: Out of Order
+    class: ABNORMAL_TRANSPORT

@@ -9,7 +9,21 @@ from uuid import uuid4
 
 from app.models.trace import DecodedTrace
 from app.services.raw_gtp import decode_gtp_from_pcap
-from app.services.knowledge import load_ngap_causes, load_nas_5gs_causes, load_nas_eps_causes
+from app.services.knowledge import (
+    load_ngap_causes,
+    load_nas_5gs_causes,
+    load_nas_eps_causes,
+    load_gtp_causes,
+    load_pfcp_causes,
+    load_diameter_causes,
+    load_dns_causes,
+    load_http_causes,
+    load_sip_causes,
+    load_radius_causes,
+    load_tls_causes,
+    load_tcp_causes,
+    load_mqtt_causes,
+)
 
 
 class DecodeError(RuntimeError):
@@ -62,6 +76,138 @@ def _get_nas_eps_cause_class(cause: int) -> str | None:
         causes = load_nas_eps_causes()
         if "causes" in causes and cause in causes["causes"]:
             return causes["causes"][cause].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_gtp_cause_class(code: int, is_v2: bool = True) -> str | None:
+    """Look up GTP cause class from YAML definitions.
+
+    Args:
+        code: The cause code
+        is_v2: True for GTPv2-C, False for GTPv1-C
+    """
+    try:
+        causes = load_gtp_causes()
+        category = "gtpv2_c" if is_v2 else "gtpv1_c"
+        if category in causes and code in causes[category]:
+            return causes[category][code].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_pfcp_cause_class(code: int) -> str | None:
+    """Look up PFCP cause class from YAML definitions."""
+    try:
+        causes = load_pfcp_causes()
+        if "pfcp" in causes and code in causes["pfcp"]:
+            return causes["pfcp"][code].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_diameter_cause_class(code: int) -> str | None:
+    """Look up Diameter result code class from YAML definitions."""
+    try:
+        causes = load_diameter_causes()
+        if "diameter" in causes and code in causes["diameter"]:
+            return causes["diameter"][code].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_dns_cause_class(code: int) -> str | None:
+    """Look up DNS response code class from YAML definitions."""
+    try:
+        causes = load_dns_causes()
+        if "dns" in causes and code in causes["dns"]:
+            return causes["dns"][code].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_http_cause_class(code: int | str) -> str | None:
+    """Look up HTTP status code class from YAML definitions."""
+    try:
+        causes = load_http_causes()
+        if "http" in causes:
+            # Try exact match first
+            if str(code) in causes["http"]:
+                return causes["http"][str(code)].get("class")
+            # Try range match (e.g., "2xx", "4xx", "5xx")
+            code_str = str(code)
+            if code_str.startswith("2"):
+                if "2xx" in causes["http"]:
+                    return causes["http"]["2xx"].get("class")
+            elif code_str.startswith("3"):
+                if "3xx" in causes["http"]:
+                    return causes["http"]["3xx"].get("class")
+            elif code_str.startswith("4"):
+                if "4xx" in causes["http"]:
+                    return causes["http"]["4xx"].get("class")
+            elif code_str.startswith("5"):
+                if "5xx" in causes["http"]:
+                    return causes["http"]["5xx"].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_sip_cause_class(code: int) -> str | None:
+    """Look up SIP response code class from YAML definitions."""
+    try:
+        causes = load_sip_causes()
+        if "sip" in causes and code in causes["sip"]:
+            return causes["sip"][code].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_radius_cause_class(code: int) -> str | None:
+    """Look up RADIUS code class from YAML definitions."""
+    try:
+        causes = load_radius_causes()
+        if "radius" in causes and code in causes["radius"]:
+            return causes["radius"][code].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_tls_cause_class(code: int) -> str | None:
+    """Look up TLS alert code class from YAML definitions."""
+    try:
+        causes = load_tls_causes()
+        if "tls" in causes and code in causes["tls"]:
+            return causes["tls"][code].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_tcp_cause_class(condition: str) -> str | None:
+    """Look up TCP condition class from YAML definitions."""
+    try:
+        causes = load_tcp_causes()
+        if "tcp" in causes and condition in causes["tcp"]:
+            return causes["tcp"][condition].get("class")
+    except Exception:
+        pass
+    return None
+
+
+def _get_mqtt_cause_class(code: int) -> str | None:
+    """Look up MQTT reason code class from YAML definitions."""
+    try:
+        causes = load_mqtt_causes()
+        if "mqtt" in causes and code in causes["mqtt"]:
+            return causes["mqtt"][code].get("class")
     except Exception:
         pass
     return None

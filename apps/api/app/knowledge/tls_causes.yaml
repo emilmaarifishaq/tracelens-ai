@@ -1,0 +1,81 @@
+# TLS Alert Classification
+
+tls:
+  "0":
+    name: Close Notify
+    class: NORMAL
+  "10":
+    name: Unexpected Message
+    class: ABNORMAL_PROTOCOL
+  "20":
+    name: Bad Record MAC
+    class: ABNORMAL_PROTOCOL
+  "21":
+    name: Decryption Failed
+    class: ABNORMAL_CONFIG
+  "22":
+    name: Record Overflow
+    class: ABNORMAL_PROTOCOL
+  "30":
+    name: Decompression Failure
+    class: ABNORMAL_PROTOCOL
+  "40":
+    name: Handshake Failure
+    class: ABNORMAL_CONFIG
+  "41":
+    name: No Certificate
+    class: ABNORMAL_CONFIG
+  "42":
+    name: Bad Certificate
+    class: ABNORMAL_CONFIG
+  "43":
+    name: Unsupported Certificate
+    class: ABNORMAL_CONFIG
+  "44":
+    name: Certificate Revoked
+    class: ABNORMAL_CONFIG
+  "45":
+    name: Certificate Expired
+    class: ABNORMAL_CONFIG
+  "46":
+    name: Certificate Unknown
+    class: ABNORMAL_CONFIG
+  "47":
+    name: Illegal Parameter
+    class: ABNORMAL_PROTOCOL
+  "48":
+    name: Unknown CA
+    class: ABNORMAL_CONFIG
+  "49":
+    name: Access Denied
+    class: ABNORMAL_CONFIG
+  "50":
+    name: Decode Error
+    class: ABNORMAL_PROTOCOL
+  "51":
+    name: Decrypt Error
+    class: ABNORMAL_PROTOCOL
+  "60":
+    name: Export Restriction
+    class: ABNORMAL_CONFIG
+  "70":
+    name: Protocol Version
+    class: ABNORMAL_PROTOCOL
+  "71":
+    name: Insufficient Security
+    class: ABNORMAL_CONFIG
+  "80":
+    name: Internal Error
+    class: ABNORMAL_RESOURCE
+  "86":
+    name: Inappropriate Fallback
+    class: ABNORMAL_PROTOCOL
+  "90":
+    name: User Canceled
+    class: NORMAL
+  "100":
+    name: No Renegotiation
+    class: ABNORMAL_PROTOCOL
+  "110":
+    name: Unsupported Extension
+    class: ABNORMAL_PROTOCOL

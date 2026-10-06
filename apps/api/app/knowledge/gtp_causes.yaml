@@ -1,0 +1,63 @@
+# GTPv2-C & GTPv1-C Cause Classification
+# Classes map causes to business impact categories for consistency across protocols
+
+gtpv2_c:
+  64:
+    name: Context Not Found
+    class: ABNORMAL_PROTOCOL
+  65:
+    name: Invalid Message Format
+    class: ABNORMAL_PROTOCOL
+  66:
+    name: Version Not Supported
+    class: ABNORMAL_PROTOCOL
+  68:
+    name: Service Not Supported
+    class: ABNORMAL_RESOURCE
+  72:
+    name: System Failure
+    class: ABNORMAL_RESOURCE
+  73:
+    name: No Resources Available
+    class: ABNORMAL_RESOURCE
+  93:
+    name: APN Access Denied
+    class: ABNORMAL_CONFIG
+
+gtpv1_c:
+  1:
+    name: Unknown IMSI
+    class: ABNORMAL_CONFIG
+  2:
+    name: Unknown Cause
+    class: REVIEW
+  3:
+    name: Invalid Message Format
+    class: ABNORMAL_PROTOCOL
+  4:
+    name: IMSI Not Known
+    class: ABNORMAL_CONFIG
+  5:
+    name: MS Detached
+    class: NORMAL
+  8:
+    name: No Resources Available
+    class: ABNORMAL_RESOURCE
+  10:
+    name: Not Supported
+    class: ABNORMAL_RESOURCE
+  11:
+    name: System Failure
+    class: ABNORMAL_RESOURCE
+  14:
+    name: Roaming Restriction
+    class: ABNORMAL_CONFIG
+  16:
+    name: APN Access Denied
+    class: ABNORMAL_CONFIG
+  25:
+    name: Optional IE Incorrect
+    class: ABNORMAL_PROTOCOL
+  72:
+    name: Mandatory IE Incorrect
+    class: ABNORMAL_PROTOCOL

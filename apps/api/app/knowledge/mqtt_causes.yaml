@@ -1,0 +1,96 @@
+# MQTT Reason Code Classification
+
+mqtt:
+  "0":
+    name: Success
+    class: NORMAL
+  "1":
+    name: Unspecified Error
+    class: ABNORMAL_RESOURCE
+  "2":
+    name: Malformed Packet
+    class: ABNORMAL_PROTOCOL
+  "4":
+    name: Unsupported Protocol Version
+    class: ABNORMAL_PROTOCOL
+  "5":
+    name: Client Identifier Not Valid
+    class: ABNORMAL_CONFIG
+  "6":
+    name: Bad User Name or Password
+    class: ABNORMAL_CONFIG
+  "7":
+    name: Not Authorized
+    class: ABNORMAL_CONFIG
+  "8":
+    name: Server Unavailable
+    class: ABNORMAL_RESOURCE
+  "9":
+    name: Server Busy
+    class: ABNORMAL_RESOURCE
+  "10":
+    name: Banned
+    class: ABNORMAL_CONFIG
+  "14":
+    name: Bad Authentication Method
+    class: ABNORMAL_CONFIG
+  "15":
+    name: Keep Alive Timeout
+    class: ABNORMAL_TRANSPORT
+  "19":
+    name: Client Moved
+    class: NORMAL
+  "20":
+    name: Internal Error
+    class: ABNORMAL_RESOURCE
+  "21":
+    name: Protocol Error
+    class: ABNORMAL_PROTOCOL
+  "22":
+    name: Receive Maximum Exceeded
+    class: ABNORMAL_RESOURCE
+  "23":
+    name: Topic Alias Invalid
+    class: ABNORMAL_PROTOCOL
+  "24":
+    name: Packet Too Large
+    class: ABNORMAL_PROTOCOL
+  "25":
+    name: Message Rate Too High
+    class: ABNORMAL_RESOURCE
+  "26":
+    name: Quota Exceeded
+    class: ABNORMAL_RESOURCE
+  "27":
+    name: Administrative Action
+    class: ADMIN
+  "28":
+    name: Payload Format Invalid
+    class: ABNORMAL_PROTOCOL
+  "29":
+    name: Retain Not Supported
+    class: ABNORMAL_PROTOCOL
+  "30":
+    name: QoS Not Supported
+    class: ABNORMAL_PROTOCOL
+  "31":
+    name: Use Another Server
+    class: NORMAL
+  "32":
+    name: Server Moved
+    class: NORMAL
+  "33":
+    name: Shared Subscription Not Supported
+    class: ABNORMAL_PROTOCOL
+  "34":
+    name: Connection Rate Exceeded
+    class: ABNORMAL_RESOURCE
+  "35":
+    name: Maximum Connect Time
+    class: ABNORMAL_RESOURCE
+  "36":
+    name: Subscription Identifiers Not Supported
+    class: ABNORMAL_PROTOCOL
+  "37":
+    name: Wildcard Subscriptions Not Supported
+    class: ABNORMAL_PROTOCOL

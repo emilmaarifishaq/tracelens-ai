@@ -1,0 +1,42 @@
+# HTTP Status Code Classification
+
+http:
+  "2xx":
+    name: Success
+    class: NORMAL
+  "3xx":
+    name: Redirect
+    class: NORMAL
+  "4xx":
+    name: Client Error
+    class: ABNORMAL_PROTOCOL
+  "5xx":
+    name: Server Error
+    class: ABNORMAL_RESOURCE
+  "400":
+    name: Bad Request
+    class: ABNORMAL_PROTOCOL
+  "401":
+    name: Unauthorized
+    class: ABNORMAL_CONFIG
+  "403":
+    name: Forbidden
+    class: ABNORMAL_CONFIG
+  "404":
+    name: Not Found
+    class: ABNORMAL_PROTOCOL
+  "429":
+    name: Too Many Requests
+    class: ABNORMAL_RESOURCE
+  "500":
+    name: Internal Server Error
+    class: ABNORMAL_RESOURCE
+  "502":
+    name: Bad Gateway
+    class: ABNORMAL_TRANSPORT
+  "503":
+    name: Service Unavailable
+    class: ABNORMAL_RESOURCE
+  "504":
+    name: Gateway Timeout
+    class: ABNORMAL_TRANSPORT

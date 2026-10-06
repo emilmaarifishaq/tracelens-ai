@@ -1,0 +1,150 @@
+# SIP Response Code Classification
+
+sip:
+  "100":
+    name: Trying
+    class: NORMAL
+  "180":
+    name: Ringing
+    class: NORMAL
+  "181":
+    name: Call Is Being Forwarded
+    class: NORMAL
+  "183":
+    name: Session Progress
+    class: NORMAL
+  "200":
+    name: OK
+    class: NORMAL
+  "300":
+    name: Multiple Choices
+    class: NORMAL
+  "301":
+    name: Moved Permanently
+    class: NORMAL
+  "302":
+    name: Moved Temporarily
+    class: NORMAL
+  "305":
+    name: Use Proxy
+    class: NORMAL
+  "380":
+    name: Alternative Service
+    class: NORMAL
+  "400":
+    name: Bad Request
+    class: ABNORMAL_PROTOCOL
+  "401":
+    name: Unauthorized
+    class: ABNORMAL_CONFIG
+  "402":
+    name: Payment Required
+    class: ABNORMAL_RESOURCE
+  "403":
+    name: Forbidden
+    class: ABNORMAL_CONFIG
+  "404":
+    name: Not Found
+    class: ABNORMAL_PROTOCOL
+  "405":
+    name: Method Not Allowed
+    class: ABNORMAL_PROTOCOL
+  "406":
+    name: Not Acceptable
+    class: ABNORMAL_PROTOCOL
+  "407":
+    name: Proxy Authentication Required
+    class: ABNORMAL_CONFIG
+  "408":
+    name: Request Timeout
+    class: ABNORMAL_TRANSPORT
+  "410":
+    name: Gone
+    class: ABNORMAL_PROTOCOL
+  "413":
+    name: Request Entity Too Large
+    class: ABNORMAL_PROTOCOL
+  "414":
+    name: Request-URI Too Long
+    class: ABNORMAL_PROTOCOL
+  "415":
+    name: Unsupported Media Type
+    class: ABNORMAL_PROTOCOL
+  "416":
+    name: Unsupported URI Scheme
+    class: ABNORMAL_PROTOCOL
+  "420":
+    name: Bad Extension
+    class: ABNORMAL_PROTOCOL
+  "421":
+    name: Extension Required
+    class: ABNORMAL_PROTOCOL
+  "423":
+    name: Interval Too Brief
+    class: ABNORMAL_PROTOCOL
+  "480":
+    name: Temporarily Not Available
+    class: ABNORMAL_RESOURCE
+  "481":
+    name: Call/Transaction Does Not Exist
+    class: ABNORMAL_PROTOCOL
+  "482":
+    name: Loop Detected
+    class: ABNORMAL_PROTOCOL
+  "483":
+    name: Too Many Hops
+    class: ABNORMAL_PROTOCOL
+  "484":
+    name: Address Incomplete
+    class: ABNORMAL_PROTOCOL
+  "485":
+    name: Ambiguous
+    class: ABNORMAL_PROTOCOL
+  "486":
+    name: Busy Here
+    class: NORMAL
+  "487":
+    name: Request Terminated
+    class: NORMAL
+  "488":
+    name: Not Acceptable Here
+    class: ABNORMAL_PROTOCOL
+  "491":
+    name: Request Pending
+    class: ABNORMAL_PROTOCOL
+  "493":
+    name: Undecipherable
+    class: ABNORMAL_PROTOCOL
+  "500":
+    name: Server Internal Error
+    class: ABNORMAL_RESOURCE
+  "501":
+    name: Not Implemented
+    class: ABNORMAL_RESOURCE
+  "502":
+    name: Bad Gateway
+    class: ABNORMAL_TRANSPORT
+  "503":
+    name: Service Unavailable
+    class: ABNORMAL_RESOURCE
+  "504":
+    name: Server Time-out
+    class: ABNORMAL_TRANSPORT
+  "505":
+    name: Version Not Supported
+    class: ABNORMAL_PROTOCOL
+  "513":
+    name: Message Too Large
+    class: ABNORMAL_PROTOCOL
+  "600":
+    name: Busy Everywhere
+    class: NORMAL
+  "603":
+    name: Decline
+    class: NORMAL
+  "604":
+    name: Does Not Exist Anywhere
+    class: ABNORMAL_PROTOCOL
+  "606":
+    name: Not Acceptable
+    class: ABNORMAL_PROTOCOL

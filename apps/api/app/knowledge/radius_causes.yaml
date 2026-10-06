@@ -1,0 +1,99 @@
+# RADIUS Code Classification
+
+radius:
+  "1":
+    name: Access-Request
+    class: NORMAL
+  "2":
+    name: Access-Accept
+    class: NORMAL
+  "3":
+    name: Access-Reject
+    class: ABNORMAL_CONFIG
+  "4":
+    name: Accounting-Request
+    class: NORMAL
+  "5":
+    name: Accounting-Response
+    class: NORMAL
+  "6":
+    name: Accounting-Status
+    class: NORMAL
+  "7":
+    name: Password-Request
+    class: NORMAL
+  "8":
+    name: Password-Ack
+    class: NORMAL
+  "9":
+    name: Password-Reject
+    class: ABNORMAL_CONFIG
+  "10":
+    name: Accounting-Message
+    class: NORMAL
+  "11":
+    name: Access-Challenge
+    class: NORMAL
+  "12":
+    name: Status-Server
+    class: NORMAL
+  "13":
+    name: Status-Client
+    class: NORMAL
+  "14":
+    name: Resource-Free-Request
+    class: NORMAL
+  "15":
+    name: Resource-Free-Response
+    class: NORMAL
+  "16":
+    name: Resource-Query-Request
+    class: NORMAL
+  "17":
+    name: Resource-Query-Response
+    class: NORMAL
+  "18":
+    name: Alternate-Resource-Reclaim-Request
+    class: NORMAL
+  "19":
+    name: NAS-Reboot-Request
+    class: NORMAL
+  "20":
+    name: NAS-Reboot-Response
+    class: NORMAL
+  "21":
+    name: Next-Passcode
+    class: NORMAL
+  "22":
+    name: New-Pin
+    class: NORMAL
+  "23":
+    name: Terminate-Session
+    class: NORMAL
+  "24":
+    name: Password-Expired
+    class: ABNORMAL_CONFIG
+  "25":
+    name: Event-Request
+    class: NORMAL
+  "26":
+    name: Event-Response
+    class: NORMAL
+  "27":
+    name: Disconnect-Request
+    class: NORMAL
+  "28":
+    name: Disconnect-ACK
+    class: NORMAL
+  "29":
+    name: Disconnect-NAK
+    class: ABNORMAL_RESOURCE
+  "30":
+    name: CoA-Request
+    class: NORMAL
+  "31":
+    name: CoA-ACK
+    class: NORMAL
+  "32":
+    name: CoA-NAK
+    class: ABNORMAL_RESOURCE

@@ -1,0 +1,36 @@
+# DNS Response Code Classification
+
+dns:
+  "0":
+    name: No Error
+    class: NORMAL
+  "1":
+    name: Format Error
+    class: ABNORMAL_PROTOCOL
+  "2":
+    name: Server Failure
+    class: ABNORMAL_RESOURCE
+  "3":
+    name: Non-Existent Domain
+    class: ABNORMAL_CONFIG
+  "4":
+    name: Query Type Not Supported
+    class: ABNORMAL_PROTOCOL
+  "5":
+    name: Query Refused
+    class: ABNORMAL_RESOURCE
+  "6":
+    name: Domain Name Exists
+    class: ABNORMAL_PROTOCOL
+  "7":
+    name: RR Set Exists
+    class: ABNORMAL_PROTOCOL
+  "8":
+    name: RR Set Does Not Exist
+    class: ABNORMAL_PROTOCOL
+  "9":
+    name: Not Authorized
+    class: ABNORMAL_CONFIG
+  "10":
+    name: Not Zone Owner
+    class: ABNORMAL_PROTOCOL

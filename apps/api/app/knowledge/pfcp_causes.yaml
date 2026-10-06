@@ -1,0 +1,40 @@
+# PFCP (Packet Forwarding Control Protocol) Cause Classification
+# Used on N4 interface (SMF-UPF)
+
+pfcp:
+  64:
+    name: Request Rejected
+    class: ABNORMAL_RESOURCE
+  65:
+    name: Session Context Not Found
+    class: ABNORMAL_PROTOCOL
+  66:
+    name: Mandatory IE Missing
+    class: ABNORMAL_PROTOCOL
+  67:
+    name: Conditional IE Missing
+    class: ABNORMAL_PROTOCOL
+  68:
+    name: Invalid Length
+    class: ABNORMAL_PROTOCOL
+  69:
+    name: Mandatory IE Incorrect
+    class: ABNORMAL_PROTOCOL
+  70:
+    name: Invalid Forwarding Policy
+    class: ABNORMAL_CONFIG
+  72:
+    name: Association Not Established
+    class: ABNORMAL_TRANSPORT
+  73:
+    name: Rule Creation Failure
+    class: ABNORMAL_RESOURCE
+  80:
+    name: No Established PFCP Association
+    class: ABNORMAL_TRANSPORT
+  81:
+    name: Service Degradation
+    class: ABNORMAL_RESOURCE
+  82:
+    name: Rule Removal Failure
+    class: ABNORMAL_RESOURCE

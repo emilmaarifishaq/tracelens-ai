@@ -296,8 +296,15 @@ def call_ai_provider(ai_context: dict, fallback: dict, question: str, config: di
     provider = config["provider"]
     prompt_text = build_prompt(ai_context, fallback, question)
     system_prompt = (
-        "You are a telecom packet-trace troubleshooting assistant. Explain only conclusions supported by "
-        "the supplied decoded trace evidence. Cite frame numbers. If evidence is insufficient, say so."
+        "You are a telecom 5G/LTE packet-trace troubleshooting expert. Your job is to provide INSIGHTS BEYOND the rule-based analysis.\n"
+        "Go beyond confirming what errors exist - explain:\n"
+        "1. WHY these specific causes occurred (network state, resource constraints, policy, timing)\n"
+        "2. PATTERNS across cause codes - are they cascading failures, isolated issues, or systemic degradation?\n"
+        "3. SEQUENCE IMPACT - how one failure triggered subsequent failures\n"
+        "4. NETWORK CONTEXT - what these specific causes indicate about RAN, UE, or network slice state\n"
+        "5. RECOVERY INDICATORS - what evidence would indicate the issue is resolved\n\n"
+        "Cite frame numbers. Be concise and avoid repeating what the rule-engine already found. "
+        "Focus on providing analysis depth that a tool cannot: pattern recognition, causality, and network state inference."
     )
 
     payload, headers = build_provider_request(provider, config["model"], system_prompt, prompt_text, config)
@@ -436,15 +443,38 @@ def env_bool(name: str, default: bool) -> bool:
 
 
 def build_prompt(ai_context: dict, fallback: dict, question: str) -> str:
+    detected_errors = ai_context.get("detected_errors", [])
+    errors_by_cause = {}
+    for error in detected_errors:
+        cause = error.get("cause_code") or error.get("code") or "unknown"
+        if cause not in errors_by_cause:
+            errors_by_cause[cause] = []
+        errors_by_cause[cause].append(error)
+
     return json.dumps(
         {
-            "engineer_question": question or "Explain the trace failure and recommended troubleshooting actions.",
-            "rule_engine_baseline": fallback,
-            "trace_context": trim_ai_context_for_prompt(ai_context),
-            "required_answer_style": {
-                "include": ["failure point", "root cause", "evidence frames", "recommended checks", "confidence"],
-                "avoid": ["unsupported guesses", "raw PCAP speculation"],
+            "engineer_question": question or "Explain why these failures occurred, not just what they are. Focus on patterns, causality, and network state.",
+            "trace_summary": {
+                "total_events": ai_context.get("trace_summary", {}).get("event_count"),
+                "unique_cause_codes": list(errors_by_cause.keys()),
+                "cause_code_frequencies": {str(k): len(v) for k, v in errors_by_cause.items()},
             },
+            "rule_engine_baseline": fallback,
+            "detected_errors_by_cause": errors_by_cause,
+            "trace_context": trim_ai_context_for_prompt(ai_context),
+            "your_analysis_should_provide": [
+                "Why these specific cause codes occurred (not just what they are)",
+                "Patterns or cascading failures across the cause codes",
+                "Network state inferences (RAN issues, UE limitations, policy, resources)",
+                "Sequence of events and causality",
+                "What would indicate recovery/resolution",
+            ],
+            "analysis_constraints": [
+                "Cite frame numbers for key evidence",
+                "Avoid repeating the rule-engine output",
+                "Be concise - focus on insights, not exhaustive listing",
+                "Only use evidence from the provided trace",
+            ],
         },
         indent=2,
     )

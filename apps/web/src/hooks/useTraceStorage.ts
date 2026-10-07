@@ -29,50 +29,134 @@ export interface TraceData {
   cached_at?: number;
 }
 
-const TRACE_STORAGE_KEY = "tracelens_cached_trace";
+const TRACE_DB_NAME = "tracelens_db";
+const TRACE_STORE_NAME = "traces";
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+let dbInstance: IDBDatabase | null = null;
+
+async function getDatabase(): Promise<IDBDatabase> {
+  if (dbInstance) return dbInstance;
+
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(TRACE_DB_NAME, 1);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      dbInstance = request.result;
+      resolve(request.result);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(TRACE_STORE_NAME)) {
+        db.createObjectStore(TRACE_STORE_NAME);
+      }
+    };
+  });
+}
+
+async function loadTraceFromDB(): Promise<TraceData | null> {
+  try {
+    const db = await getDatabase();
+    return new Promise((resolve) => {
+      const transaction = db.transaction(TRACE_STORE_NAME, "readonly");
+      const store = transaction.objectStore(TRACE_STORE_NAME);
+      const request = store.get("cached_trace");
+
+      request.onsuccess = () => {
+        const trace = request.result as TraceData | undefined;
+        if (trace) {
+          const now = Date.now();
+          const cachedAt = trace.cached_at || 0;
+
+          if (now - cachedAt < CACHE_EXPIRY_MS) {
+            resolve(trace);
+          } else {
+            resolve(null);
+          }
+        } else {
+          resolve(null);
+        }
+      };
+
+      request.onerror = () => resolve(null);
+    });
+  } catch (error) {
+    console.error("Error loading trace from IndexedDB:", error);
+    return null;
+  }
+}
+
+async function saveTraceToDB(trace: TraceData): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const traceWithTimestamp = {
+      ...trace,
+      cached_at: Date.now(),
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(TRACE_STORE_NAME, "readwrite");
+      const store = transaction.objectStore(TRACE_STORE_NAME);
+      const request = store.put(traceWithTimestamp, "cached_trace");
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error("Error saving trace to IndexedDB:", error);
+    throw error;
+  }
+}
+
+async function clearTraceDB(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(TRACE_STORE_NAME, "readwrite");
+      const store = transaction.objectStore(TRACE_STORE_NAME);
+      const request = store.delete("cached_trace");
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error("Error clearing IndexedDB:", error);
+    throw error;
+  }
+}
 
 export function useTraceStorage() {
   const [cachedTrace, setCachedTrace] = useState<TraceData | null>(null);
   const [isCached, setIsCached] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load from localStorage on mount
+  // Load from IndexedDB on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(TRACE_STORAGE_KEY);
-      if (stored) {
-        const trace = JSON.parse(stored) as TraceData;
-        const now = Date.now();
-        const cachedAt = trace.cached_at || 0;
-
-        // Check if cache is expired
-        if (now - cachedAt < CACHE_EXPIRY_MS) {
+    (async () => {
+      try {
+        const trace = await loadTraceFromDB();
+        if (trace) {
           setCachedTrace(trace);
           setIsCached(true);
         } else {
-          // Cache expired, remove it
-          localStorage.removeItem(TRACE_STORAGE_KEY);
           setIsCached(false);
         }
+      } catch (error) {
+        console.error("Error loading cached trace:", error);
+        setIsCached(false);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error loading cached trace:", error);
-      setIsCached(false);
-    } finally {
-      setIsLoading(false);
-    }
+    })();
   }, []);
 
-  // Save trace to localStorage
-  const saveTrace = (trace: TraceData) => {
+  // Save trace to IndexedDB
+  const saveTrace = async (trace: TraceData) => {
     try {
-      const traceWithTimestamp = {
-        ...trace,
-        cached_at: Date.now(),
-      };
-      localStorage.setItem(TRACE_STORAGE_KEY, JSON.stringify(traceWithTimestamp));
-      setCachedTrace(traceWithTimestamp);
+      await saveTraceToDB(trace);
+      setCachedTrace(trace);
       setIsCached(true);
     } catch (error) {
       console.error("Error saving trace to cache:", error);
@@ -80,9 +164,9 @@ export function useTraceStorage() {
   };
 
   // Clear cache
-  const clearCache = () => {
+  const clearCache = async () => {
     try {
-      localStorage.removeItem(TRACE_STORAGE_KEY);
+      await clearTraceDB();
       setCachedTrace(null);
       setIsCached(false);
     } catch (error) {

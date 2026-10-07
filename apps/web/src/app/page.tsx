@@ -255,7 +255,7 @@ export default function Home() {
 
       const initialHostFlow = decoded.ai_context.trace_summary?.host_flows?.[0] || null;
       setResult(decoded);
-      saveTrace(decoded);
+      await saveTrace(decoded);
       setSelectedHostFlow(initialHostFlow);
       setSelectedFrame(initialHostFlow?.first_frame ? String(initialHostFlow.first_frame) : null);
       setAiAnalysis(null);
@@ -498,8 +498,8 @@ export default function Home() {
             </p>
             <div style={{ display: "flex", gap: "8px" }}>
               <button
-                onClick={() => {
-                  clearCache();
+                onClick={async () => {
+                  await clearCache();
                   setResult(null);
                   setFiles([]);
                   setSelectedHostFlow(null);
@@ -523,8 +523,8 @@ export default function Home() {
                 Clear Cache
               </button>
               <button
-                onClick={() => {
-                  clearCache();
+                onClick={async () => {
+                  await clearCache();
                   setResult(null);
                   setFiles([]);
                   setSelectedHostFlow(null);

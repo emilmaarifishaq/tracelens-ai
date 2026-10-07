@@ -14,9 +14,9 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleClearCache = () => {
+  const handleClearCache = async () => {
     if (confirm("Are you sure you want to clear the cached trace? You will need to upload a new PCAP file.")) {
-      clearCache();
+      await clearCache();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }

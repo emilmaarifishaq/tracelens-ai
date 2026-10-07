@@ -1,80 +1,70 @@
 "use client";
 
 import { AlertTriangle, ChevronRight, Filter, Network, Activity, Brain, Clipboard, Settings2, Zap, Shield } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTraceStorage } from "@/hooks/useTraceStorage";
+
+type TraceResult = {
+  errors: Array<Record<string, unknown>>;
+  ai_context?: Record<string, unknown>;
+};
 
 export default function ErrorBreakdownPage() {
+  const { cachedTrace, isLoading: cacheLoading } = useTraceStorage();
   const [selectedCause, setSelectedCause] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<"count" | "percentage">("count");
+  const [result, setResult] = useState<TraceResult | null>(null);
 
-  const errorData = [
-    {
-      code: 24,
-      name: "failure-in-radio-interface-procedure",
-      description: "RRC reconfiguration or re-establishment failing during session",
-      count: 177,
-      percentage: 35.4,
-      timeline: "20-60s after context setup",
-      affectedUEs: 45,
-      severity: "high",
-      frames: [1234, 1256, 1278, 1301, 1324],
-    },
-    {
-      code: 21,
-      name: "radio-connection-with-UE-lost",
-      description: "RLF (Radio Link Failure) or coverage loss",
-      count: 93,
-      percentage: 18.6,
-      timeline: "60-100s after setup (peak)",
-      affectedUEs: 23,
-      severity: "high",
-      frames: [2145, 2167, 2189, 2201],
-    },
-    {
-      code: 20,
-      name: "user-inactivity",
-      description: "UE or network initiated release due to inactivity",
-      count: 89,
-      percentage: 17.8,
-      timeline: "Normal session termination",
-      affectedUEs: 31,
-      severity: "medium",
-      frames: [3021, 3045, 3089, 3124],
-    },
-    {
-      code: 15,
-      name: "access-barred",
-      description: "Access class restrictions or barring applied",
-      count: 67,
-      percentage: 13.4,
-      timeline: "Immediate on attachment",
-      affectedUEs: 18,
-      severity: "high",
-      frames: [1089, 1156, 1223, 1290],
-    },
-    {
-      code: 10,
-      name: "network-failure",
-      description: "Generic network/AMF rejection",
-      count: 45,
-      percentage: 9.0,
-      timeline: "During procedure execution",
-      affectedUEs: 12,
-      severity: "medium",
-      frames: [2345, 2412, 2478, 2534],
-    },
-    {
-      code: 5,
-      name: "nas-error",
-      description: "NAS protocol error or invalid message",
-      count: 29,
-      percentage: 5.8,
-      timeline: "During NAS exchange",
-      affectedUEs: 8,
-      severity: "low",
-      frames: [1678, 1712, 1745, 1789],
-    },
-  ];
+  useEffect(() => {
+    if (!cacheLoading && cachedTrace) {
+      setResult(cachedTrace as TraceResult);
+    }
+  }, [cacheLoading, cachedTrace]);
+
+  // Build error breakdown from real error data
+  const errorData = useMemo(() => {
+    if (!result?.errors || result.errors.length === 0) {
+      return [];
+    }
+
+    const groupedByCause = new Map<number | string, Array<Record<string, unknown>>>();
+    result.errors.forEach((error) => {
+      const code = (error.cause_code ?? error.code) as number | string | undefined;
+      if (code != null) {
+        if (!groupedByCause.has(code)) {
+          groupedByCause.set(code, []);
+        }
+        groupedByCause.get(code)!.push(error);
+      }
+    });
+
+    const totalErrors = result.errors.length;
+    const breakdown = Array.from(groupedByCause.entries()).map(([code, errors]) => {
+      const count = errors.length;
+      const percentage = (count / totalErrors) * 100;
+      const frames = errors
+        .map((e) => Number(e.frame))
+        .filter((f) => !isNaN(f))
+        .slice(0, 5);
+
+      const numCode = Number(code);
+      return {
+        code: numCode,
+        name: String(errors[0]?.error ?? code),
+        description: String(errors[0]?.root_cause ?? "Error cause details"),
+        count,
+        percentage,
+        timeline: frames.length > 0 ? `Frames ${Math.min(...frames)}-${Math.max(...frames)}` : "Unknown timeline",
+        affectedUEs: new Set(errors.map((e) => String(e.frame))).size,
+        severity: String(errors[0]?.severity ?? "medium"),
+        frames,
+      };
+    });
+
+    return breakdown.length > 0
+      ? breakdown
+      : [];
+  }, [result?.errors]);
 
   const sortedErrors = [...errorData].sort((a, b) => {
     if (sortBy === "count") {
@@ -116,6 +106,25 @@ export default function ErrorBreakdownPage() {
           </div>
         </header>
 
+        {cacheLoading && (
+          <section style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+            <p>Loading trace data...</p>
+          </section>
+        )}
+
+        {!cacheLoading && (!result || errorData.length === 0) && (
+          <section style={{ padding: "20px", textAlign: "center" }}>
+            <p style={{ color: "#666" }}>
+              No trace data available. Please upload a PCAP file in the Analyzer to see error breakdown.
+            </p>
+            <a href="/" style={{ color: "#3b82f6", textDecoration: "none", marginTop: "10px", display: "inline-block" }}>
+              Go to Analyzer
+            </a>
+          </section>
+        )}
+
+        {!cacheLoading && result && errorData.length > 0 && (
+          <>
         <section className="metrics">
           <div className="panel">
             <h3>Total Errors</h3>
@@ -178,7 +187,7 @@ export default function ErrorBreakdownPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "12px" }}>
                     <div>
                       <strong style={{ fontSize: "16px" }}>Cause Code {error.code}</strong>
-                      <p style={{ fontSize: "13px", color: "#666", marginTop: "4px" }}>{error.name}</p>
+                      <p style={{ fontSize: "13px", color: "#666", marginTop: "4px" }}>{String(error.name)}</p>
                     </div>
                     <div
                       style={{
@@ -190,11 +199,11 @@ export default function ErrorBreakdownPage() {
                         color: error.severity === "high" ? "#991b1b" : error.severity === "medium" ? "#92400e" : "#075985",
                       }}
                     >
-                      {error.severity.toUpperCase()}
+                      {String(error.severity).toUpperCase()}
                     </div>
                   </div>
 
-                  <p style={{ fontSize: "14px", color: "#555", marginBottom: "12px" }}>{error.description}</p>
+                  <p style={{ fontSize: "14px", color: "#555", marginBottom: "12px" }}>{String(error.description)}</p>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
                     <div>
@@ -270,7 +279,7 @@ export default function ErrorBreakdownPage() {
               </div>
               <div style={{ padding: "16px" }}>
                 <p style={{ marginBottom: "16px" }}>
-                  {errorData.find((e) => e.code === selectedCause)?.description}
+                  {errorData.find((e) => e.code === selectedCause)?.description ?? "No description available"}
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "16px" }}>
                   <div>
@@ -299,6 +308,8 @@ export default function ErrorBreakdownPage() {
             </div>
           )}
         </section>
+          </>
+        )}
       </section>
     </main>
   );

@@ -103,13 +103,8 @@ export default function Home() {
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showCacheInfo, setShowCacheInfo] = useState(false);
+  const [filterByCauseCode, setFilterByCauseCode] = useState<number | null>(null);
 
-  // Load cached trace on mount
-  useEffect(() => {
-    if (!cacheLoading && cachedTrace && !result) {
-      setResult(cachedTrace as TraceResult);
-    }
-  }, [cacheLoading, cachedTrace, result]);
   const uploadRequestRef = useRef(0);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const [http2Ports, setHttp2Ports] = useState("29502,29503,29504,29507,29509,29518");
@@ -117,6 +112,23 @@ export default function Home() {
   const [hideDuplicatePfcp, setHideDuplicatePfcp] = useState(true);
   const [selectedProtocols, setSelectedProtocols] = useState<Set<string>>(new Set());
   const [errorsOnly, setErrorsOnly] = useState(false);
+
+  // Load cached trace on mount
+  useEffect(() => {
+    if (!cacheLoading && cachedTrace && !result) {
+      setResult(cachedTrace as TraceResult);
+    }
+  }, [cacheLoading, cachedTrace, result]);
+
+  // Check for cause code filter from Error Breakdown page
+  useEffect(() => {
+    const causeCodeFilter = sessionStorage.getItem("filterByCauseCode");
+    if (causeCodeFilter) {
+      setFilterByCauseCode(parseInt(causeCodeFilter, 10));
+      setErrorsOnly(true);
+      sessionStorage.removeItem("filterByCauseCode");
+    }
+  }, []);
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
   const [selectedHostFlow, setSelectedHostFlow] = useState<Record<string, unknown> | null>(null);
   const [searchText, setSearchText] = useState("");
@@ -140,6 +152,17 @@ export default function Home() {
     [result],
   );
   const errorFrames = useMemo(() => new Set((result?.errors || []).map((error) => String(error.frame))), [result]);
+  const errorsByCauseCode = useMemo(() => {
+    const map = new Map<number, Set<string>>();
+    (result?.errors || []).forEach((error) => {
+      const code = (error.cause_code || error.error_code || error.code) as number | undefined;
+      if (code !== undefined && error.frame) {
+        if (!map.has(code)) map.set(code, new Set());
+        map.get(code)!.add(String(error.frame));
+      }
+    });
+    return map;
+  }, [result]);
   const participants = result?.ai_context.trace_summary?.participants || [];
   const procedures = result?.ai_context.trace_summary?.procedures || [];
   const procedureGroups = result?.ai_context.trace_summary?.procedure_groups || [];
@@ -166,9 +189,11 @@ export default function Home() {
   const visibleEvents = useMemo(() => {
     const events = result?.events || [];
     const needle = searchText.trim().toLowerCase();
+    const causesForFilter = filterByCauseCode !== null ? errorsByCauseCode.get(filterByCauseCode) : null;
     return events.filter((event) => {
       const matchesProtocol = selectedProtocols.size === 0 || selectedProtocols.has(String(event.protocol));
       const matchesError = !errorsOnly || errorFrames.has(String(event.frame));
+      const matchesCauseCode = filterByCauseCode === null || (causesForFilter && causesForFilter.has(String(event.frame)));
       const matchesSearch =
         !needle ||
         [
@@ -190,9 +215,9 @@ export default function Home() {
           event.dst,
         ]
           .some((value) => String(value || "").toLowerCase().includes(needle));
-      return matchesProtocol && matchesError && matchesSearch;
+      return matchesProtocol && matchesError && matchesCauseCode && matchesSearch;
     });
-  }, [errorFrames, errorsOnly, selectedProtocols, result, searchText]);
+  }, [errorFrames, errorsOnly, selectedProtocols, result, searchText, filterByCauseCode, errorsByCauseCode]);
   const selectedEvent = useMemo(
     () => visibleEvents.find((event) => String(event.frame) === selectedFrame) || null,
     [selectedFrame, visibleEvents],
@@ -414,6 +439,43 @@ export default function Home() {
             </div>
           </div>
         </header>
+
+        {filterByCauseCode !== null && (
+          <section style={{
+            padding: "12px 16px",
+            background: "#fef3c7",
+            borderLeft: "4px solid #f59e0b",
+            marginBottom: "16px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            borderRadius: "4px"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertTriangle size={16} style={{ color: "#d97706" }} />
+              <span style={{ fontSize: "13px", color: "#92400e" }}>
+                <strong>Filtering by Cause Code {filterByCauseCode}</strong> - Showing only errors with this cause code
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setFilterByCauseCode(null);
+                setErrorsOnly(false);
+              }}
+              style={{
+                padding: "4px 8px",
+                background: "transparent",
+                color: "#92400e",
+                border: "1px solid #f59e0b",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "12px",
+              }}
+            >
+              Clear Filter
+            </button>
+          </section>
+        )}
 
         <section className="uploadPanel">
           <label>

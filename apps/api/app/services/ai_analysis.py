@@ -82,7 +82,67 @@ def build_rule_based_explanation(ai_context: dict, question: str = "") -> dict:
     drilldowns = summary.get("session_drilldowns", [])
     first_drilldown = drilldowns[0] if drilldowns else {}
 
+    # Check if errors are grouped by cause code
+    errors_by_cause_code = ai_context.get("errors_by_cause_code", {})
+    unique_cause_codes = ai_context.get("unique_cause_codes", [])
+
     if errors:
+        # If we have cause code grouping, generate explanations per cause code
+        if unique_cause_codes and errors_by_cause_code:
+            explanations_by_cause = {}
+            for cause_code in unique_cause_codes[:5]:  # Limit to top 5 cause codes
+                cause_errors = errors_by_cause_code.get(str(cause_code), [])
+                if cause_errors:
+                    first_cause_error = cause_errors[0]
+                    evidence = []
+
+                    # Add evidence from timeline related to this cause
+                    for item in timeline[:3]:
+                        evidence_text = item.get("evidence")
+                        if evidence_text and evidence_text not in evidence:
+                            evidence.append(str(evidence_text))
+
+                    # Add evidence from errors with this cause code
+                    for error in cause_errors[:3]:
+                        evidence_text = str(error.get("evidence") or f"{error.get('protocol')} error at frame {error.get('frame')}")
+                        if evidence_text not in evidence:
+                            evidence.append(evidence_text)
+
+                    actions = []
+                    for error in cause_errors[:2]:
+                        for action in error.get("recommended_checks", []):
+                            if action not in actions:
+                                actions.append(action)
+                    if not actions and first_drilldown:
+                        actions = first_drilldown.get("next_checks", [])
+
+                    explanations_by_cause[cause_code] = {
+                        "cause_code": cause_code,
+                        "summary": (
+                            f"{first_cause_error.get('error')} (Cause {cause_code}) occurred {len(cause_errors)} "
+                            f"{pluralize('time', len(cause_errors))} across the trace."
+                        ),
+                        "root_cause": first_cause_error.get("root_cause") or "A protocol peer returned an explicit failure code.",
+                        "confidence": "high",
+                        "evidence": evidence[:5],
+                        "recommended_actions": actions[:3],
+                    }
+
+            # Return main summary plus per-cause-code details
+            return {
+                "summary": (
+                    f"TraceLens detected {len(errors)} explicit protocol {pluralize('issue', len(errors))} "
+                    f"across {len(unique_cause_codes)} unique cause {pluralize('code', len(unique_cause_codes))}."
+                ),
+                "root_cause": "Multiple protocol issues detected",
+                "confidence": "high",
+                "evidence": [],
+                "recommended_actions": [],
+                "question": question,
+                "explanations_by_cause_code": explanations_by_cause,
+            }
+
+        # Fallback to original behavior if no cause code grouping
         first_error = errors[0]
         evidence = []
         drilldown_evidence = first_drilldown.get("what_happened")

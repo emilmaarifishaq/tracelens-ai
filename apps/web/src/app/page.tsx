@@ -313,11 +313,29 @@ export default function Home() {
       const apiBaseUrl =
         process.env.NEXT_PUBLIC_API_BASE_URL ||
         `${window.location.protocol}//${window.location.hostname}:8000`;
+
+      // Group errors by cause code for more focused analysis
+      const errorsByCauseCode = new Map<number | string, Array<Record<string, unknown>>>();
+      (result.errors || []).forEach((error) => {
+        const code = (error.cause_code || error.error_code || error.code) as number | string | undefined;
+        if (code !== undefined) {
+          if (!errorsByCauseCode.has(code)) errorsByCauseCode.set(code, []);
+          errorsByCauseCode.get(code)!.push(error);
+        }
+      });
+
+      // Create a cause-code-aware ai_context for analysis
+      const analysisContext = {
+        ...result.ai_context,
+        errors_by_cause_code: Object.fromEntries(errorsByCauseCode),
+        unique_cause_codes: Array.from(errorsByCauseCode.keys()),
+      };
+
       const response = await fetch(`${apiBaseUrl}/analysis/explain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ai_context: result.ai_context,
+          ai_context: analysisContext,
           question: aiQuestion,
           use_ai: aiConfig.provider !== "rule-engine",
           mask_identifiers: maskIdentifiers,
@@ -1121,6 +1139,9 @@ function ProcedureTimeline({ procedures }: { procedures: Array<Record<string, un
 }
 
 function AiAnalysisView({ analysis }: { analysis: AiAnalysis }) {
+  const explanationsByCode = (analysis as any).explanations_by_cause_code || {};
+  const hasCauseCodeExplanations = Object.keys(explanationsByCode).length > 0;
+
   return (
     <div className="aiResult">
       {analysis.ai_text ? (
@@ -1133,32 +1154,84 @@ function AiAnalysisView({ analysis }: { analysis: AiAnalysis }) {
         <strong>Summary</strong>
         <p>{analysis.summary}</p>
       </article>
-      <article>
-        <strong>Root Cause</strong>
-        <p>{analysis.root_cause}</p>
-      </article>
-      <article>
-        <strong>Confidence</strong>
-        <p>{analysis.confidence}</p>
-      </article>
-      {analysis.evidence.length > 0 && (
-        <article>
-          <strong>Evidence</strong>
-          <ul>
-            {analysis.evidence.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </article>
+      {!hasCauseCodeExplanations && (
+        <>
+          <article>
+            <strong>Root Cause</strong>
+            <p>{analysis.root_cause}</p>
+          </article>
+          <article>
+            <strong>Confidence</strong>
+            <p>{analysis.confidence}</p>
+          </article>
+          {analysis.evidence.length > 0 && (
+            <article>
+              <strong>Evidence</strong>
+              <ul>
+                {analysis.evidence.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </article>
+          )}
+          <article>
+            <strong>Recommended Actions</strong>
+            <ul>
+              {analysis.recommended_actions.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+        </>
       )}
-      <article>
-        <strong>Recommended Actions</strong>
-        <ul>
-          {analysis.recommended_actions.map((item) => (
-            <li key={item}>{item}</li>
+      {hasCauseCodeExplanations && (
+        <div style={{ marginTop: "16px" }}>
+          <strong style={{ fontSize: "16px", display: "block", marginBottom: "12px" }}>Cause Code Analysis</strong>
+          {Object.entries(explanationsByCode).map(([causeCode, explanation]: [string, any]) => (
+            <article
+              key={causeCode}
+              style={{
+                marginBottom: "16px",
+                padding: "12px",
+                background: "#f9fafb",
+                borderLeft: "3px solid #3b82f6",
+                borderRadius: "4px",
+              }}
+            >
+              <strong style={{ color: "#0369a1" }}>Cause Code {causeCode}</strong>
+              <p style={{ marginTop: "8px", marginBottom: "8px" }}>{explanation.summary}</p>
+              <div style={{ fontSize: "13px", color: "#555" }}>
+                <strong>Root Cause:</strong>
+                <p style={{ marginTop: "4px" }}>{explanation.root_cause}</p>
+              </div>
+              {explanation.evidence && explanation.evidence.length > 0 && (
+                <div style={{ marginTop: "8px" }}>
+                  <strong style={{ fontSize: "13px" }}>Evidence:</strong>
+                  <ul style={{ marginTop: "4px", paddingLeft: "20px" }}>
+                    {explanation.evidence.map((item: string) => (
+                      <li key={item} style={{ fontSize: "12px" }}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {explanation.recommended_actions && explanation.recommended_actions.length > 0 && (
+                <div style={{ marginTop: "8px" }}>
+                  <strong style={{ fontSize: "13px" }}>Recommended Actions:</strong>
+                  <ul style={{ marginTop: "4px", paddingLeft: "20px" }}>
+                    {explanation.recommended_actions.map((item: string) => (
+                      <li key={item} style={{ fontSize: "12px" }}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </article>
           ))}
-        </ul>
-      </article>
+        </div>
+      )}
       {analysis.ai_error ? <p className="errorText">{analysis.ai_error}</p> : null}
     </div>
   );

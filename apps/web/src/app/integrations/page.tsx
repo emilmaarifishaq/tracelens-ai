@@ -15,6 +15,7 @@ export default function IntegrationsPage() {
         </div>
         <nav>
           <a href="/"><Zap size={18} /> Analyzer</a>
+          <a href="/error-breakdown"><Zap size={18} /> Error Breakdown</a>
           <a href="/analytics"><Zap size={18} /> Analytics</a>
           <a href="/sla"><Zap size={18} /> SLA Tracking</a>
           <a href="/audit"><Zap size={18} /> Audit Logs</a>

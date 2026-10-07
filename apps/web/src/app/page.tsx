@@ -365,6 +365,7 @@ export default function Home() {
 
         <nav>
           <a href="/" className="active"><Activity size={18} /> Analyzer</a>
+          <a href="/error-breakdown"><AlertTriangle size={18} /> Error Breakdown</a>
           <a href="/analytics"><Brain size={18} /> Analytics</a>
           <a href="/sla"><AlertTriangle size={18} /> SLA Tracking</a>
           <a href="/audit"><Clipboard size={18} /> Audit Logs</a>

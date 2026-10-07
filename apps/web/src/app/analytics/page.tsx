@@ -15,6 +15,7 @@ export default function AnalyticsPage() {
         </div>
         <nav>
           <a href="/"><Users size={18} /> Analyzer</a>
+          <a href="/error-breakdown"><TrendingUp size={18} /> Error Breakdown</a>
           <a href="/analytics" className="active"><BarChart3 size={18} /> Analytics</a>
           <a href="/sla"><TrendingUp size={18} /> SLA Tracking</a>
           <a href="/audit"><Zap size={18} /> Audit Logs</a>

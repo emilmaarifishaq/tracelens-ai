@@ -15,13 +15,15 @@ import {
   Settings2,
   Shield,
   Zap,
+  Trash2,
 } from "lucide-react";
 import { toPng } from "html-to-image";
-import { type RefObject, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiStatus } from "@/components/ApiStatus";
 import { ProtocolFilter } from "@/components/ProtocolFilter";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { useTraceStorage } from "@/hooks/useTraceStorage";
 
 interface ProtocolStats {
   count: number;
@@ -92,12 +94,22 @@ type HostSessionInsight = {
 };
 
 export default function Home() {
+  const { cachedTrace, isCached, isLoading: cacheLoading, saveTrace, clearCache, getCacheInfo } = useTraceStorage();
+
   const [files, setFiles] = useState<File[]>([]);
   const [mappingFile, setMappingFile] = useState<File | null>(null);
   const [keylogFile, setKeylogFile] = useState<File | null>(null);
   const [result, setResult] = useState<TraceResult | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showCacheInfo, setShowCacheInfo] = useState(false);
+
+  // Load cached trace on mount
+  useEffect(() => {
+    if (!cacheLoading && cachedTrace && !result) {
+      setResult(cachedTrace as TraceResult);
+    }
+  }, [cacheLoading, cachedTrace, result]);
   const uploadRequestRef = useRef(0);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const [http2Ports, setHttp2Ports] = useState("29502,29503,29504,29507,29509,29518");
@@ -243,6 +255,7 @@ export default function Home() {
 
       const initialHostFlow = decoded.ai_context.trace_summary?.host_flows?.[0] || null;
       setResult(decoded);
+      saveTrace(decoded);
       setSelectedHostFlow(initialHostFlow);
       setSelectedFrame(initialHostFlow?.first_frame ? String(initialHostFlow.first_frame) : null);
       setAiAnalysis(null);
@@ -468,6 +481,78 @@ export default function Home() {
             <span>Hide duplicate PFCP</span>
           </label>
         </section>
+
+        {isCached && result && (
+          <section className="settingsPanel" style={{ background: "#f0f9ff", borderLeft: "4px solid #3b82f6" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <CheckCircle2 size={18} style={{ color: "#3b82f6" }} />
+                <strong>Cached Trace Loaded</strong>
+              </div>
+              <span style={{ fontSize: "12px", color: "#666" }}>
+                {getCacheInfo()?.filename} • {getCacheInfo()?.eventCount} events
+              </span>
+            </div>
+            <p style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
+              Cached at: {getCacheInfo()?.cachedAt}
+            </p>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => {
+                  clearCache();
+                  setResult(null);
+                  setFiles([]);
+                  setSelectedHostFlow(null);
+                  setSelectedFrame(null);
+                  setAiAnalysis(null);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  background: "#ef4444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <Trash2 size={14} />
+                Clear Cache
+              </button>
+              <button
+                onClick={() => {
+                  clearCache();
+                  setResult(null);
+                  setFiles([]);
+                  setSelectedHostFlow(null);
+                  setSelectedFrame(null);
+                  setAiAnalysis(null);
+                  setUploadError(null);
+                  setStatus("idle");
+                  setShowCacheInfo(false);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  background: "#3b82f6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <FileUp size={14} />
+                New Upload
+              </button>
+            </div>
+          </section>
+        )}
 
         <section className="metrics">
           <Metric label="Frames decoded" value={String(result?.event_count || 0)} />

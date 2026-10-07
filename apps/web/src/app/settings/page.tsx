@@ -1,14 +1,25 @@
 "use client";
 
-import { Save, Zap } from "lucide-react";
+import { Save, Zap, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useTraceStorage } from "@/hooks/useTraceStorage";
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
+  const { clearCache, getCacheInfo } = useTraceStorage();
+  const cacheInfo = getCacheInfo();
 
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleClearCache = () => {
+    if (confirm("Are you sure you want to clear the cached trace? You will need to upload a new PCAP file.")) {
+      clearCache();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
   };
 
   return (
@@ -146,9 +157,41 @@ export default function SettingsPage() {
               <button style={{ padding: "8px 12px", background: "#6b7280", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", textAlign: "left" }}>
                 Export Settings
               </button>
-              <button style={{ padding: "8px 12px", background: "#6b7280", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", textAlign: "left" }}>
-                Clear Cache
-              </button>
+              {cacheInfo && (
+                <div style={{ padding: "8px 12px", background: "#f0f9ff", borderRadius: "4px", borderLeft: "3px solid #3b82f6" }}>
+                  <p style={{ fontSize: "13px", marginBottom: "8px" }}>
+                    <strong>Cached Trace:</strong> {cacheInfo.filename}
+                  </p>
+                  <p style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}>
+                    {cacheInfo.eventCount} events • Cached at {cacheInfo.cachedAt}
+                  </p>
+                  <button
+                    onClick={handleClearCache}
+                    style={{
+                      padding: "6px 10px",
+                      background: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      width: "100%",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Trash2 size={12} />
+                    Clear Cached Trace
+                  </button>
+                </div>
+              )}
+              {!cacheInfo && (
+                <p style={{ fontSize: "12px", color: "#666", padding: "8px 12px", background: "#f3f4f6", borderRadius: "4px" }}>
+                  No cached trace available. Upload a PCAP file to cache it.
+                </p>
+              )}
               <button style={{ padding: "8px 12px", background: "#7f1d1d", color: "#fca5a5", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", textAlign: "left" }}>
                 Reset to Defaults
               </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronRight, Filter, Network } from "lucide-react";
+import { AlertTriangle, ChevronRight, Filter, Network, Activity, Brain, Clipboard, Settings2, Zap, Shield } from "lucide-react";
 import { useState } from "react";
 
 export default function ErrorBreakdownPage() {
@@ -296,6 +296,3 @@ export default function ErrorBreakdownPage() {
     </main>
   );
 }
-
-// Import icons
-import { Activity, Brain, Clipboard, Settings2, Zap } from "lucide-react";

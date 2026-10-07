@@ -40,8 +40,13 @@ def explain_trace_context(
         config["base_url"] = base_url
 
     requires_api_key = config["provider"] not in {"rule-engine", "ollama"}
-    if not use_ai or config["provider"] == "rule-engine" or (requires_api_key and not config["api_key"]):
-        return {
+
+    # Check if user requested AI but API key is missing
+    api_key_missing = requires_api_key and not config["api_key"]
+    explicitly_disabled = not use_ai or config["provider"] == "rule-engine"
+
+    if explicitly_disabled or api_key_missing:
+        result = {
             **fallback,
             "provider": "rule-engine",
             "mode": "offline",
@@ -49,6 +54,12 @@ def explain_trace_context(
             "masked": mask_identifiers,
             "web_search_used": False,
         }
+
+        # Add error message only when user requested AI but API key is missing
+        if use_ai and api_key_missing:
+            result["ai_error"] = f"API key required for {config['provider']} provider. Falling back to local rules. Add your API key in Settings to use AI-powered analysis."
+
+        return result
 
     try:
         ai_text = call_ai_provider(masked_context, fallback, question, config)

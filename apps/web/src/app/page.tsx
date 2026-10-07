@@ -14,6 +14,7 @@ import {
   Search,
   Settings2,
   Shield,
+  Zap,
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { type RefObject, useMemo, useRef, useState } from "react";
@@ -363,10 +364,13 @@ export default function Home() {
         </div>
 
         <nav>
-          <a className="active"><Activity size={18} /> Analyzer</a>
-          <a><AlertTriangle size={18} /> Errors</a>
-          <a><Brain size={18} /> AI Context</a>
-          <a><Search size={18} /> Packets</a>
+          <a href="/" className="active"><Activity size={18} /> Analyzer</a>
+          <a href="/analytics"><Brain size={18} /> Analytics</a>
+          <a href="/sla"><AlertTriangle size={18} /> SLA Tracking</a>
+          <a href="/audit"><Clipboard size={18} /> Audit Logs</a>
+          <a href="/enterprise"><Shield size={18} /> Enterprise</a>
+          <a href="/integrations"><Zap size={18} /> Integrations</a>
+          <a href="/settings"><Settings2 size={18} /> Settings</a>
         </nav>
       </aside>
 

@@ -198,6 +198,7 @@ def build_error(event: dict, protocol: str, code: object, definition: dict) -> d
         "severity": definition.get("severity", "warning"),
         "protocol": protocol,
         "code": str(code),
+        "cause_code": int(code) if isinstance(code, (int, str)) and str(code).isdigit() else str(code),
         "error": name,
         "root_cause": definition.get("root_cause", "TraceLens matched this frame to a local protocol rule."),
         "recommended_checks": definition.get("recommended_checks", []),

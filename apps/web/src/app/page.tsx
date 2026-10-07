@@ -153,12 +153,22 @@ export default function Home() {
   );
   const errorFrames = useMemo(() => new Set((result?.errors || []).map((error) => String(error.frame))), [result]);
   const errorsByCauseCode = useMemo(() => {
-    const map = new Map<number, Set<string>>();
+    const map = new Map<number | string, Set<string>>();
     (result?.errors || []).forEach((error) => {
-      const code = (error.cause_code || error.error_code || error.code) as number | undefined;
+      let code: number | string | undefined;
+      if (error.cause_code != null) {
+        code = typeof error.cause_code === "number" ? error.cause_code : parseInt(String(error.cause_code), 10);
+      } else if (error.error_code != null) {
+        code = error.error_code as number | string;
+      } else if (error.code != null) {
+        code = error.code as number | string;
+      }
       if (code !== undefined && error.frame) {
-        if (!map.has(code)) map.set(code, new Set());
-        map.get(code)!.add(String(error.frame));
+        const numCode = typeof code === "number" ? code : parseInt(String(code), 10);
+        if (!isNaN(numCode)) {
+          if (!map.has(numCode)) map.set(numCode, new Set());
+          map.get(numCode)!.add(String(error.frame));
+        }
       }
     });
     return map;
@@ -317,10 +327,20 @@ export default function Home() {
       // Group errors by cause code for more focused analysis
       const errorsByCauseCode = new Map<number | string, Array<Record<string, unknown>>>();
       (result.errors || []).forEach((error) => {
-        const code = (error.cause_code || error.error_code || error.code) as number | string | undefined;
+        let code: number | string | undefined;
+        if (error.cause_code != null) {
+          code = typeof error.cause_code === "number" ? error.cause_code : parseInt(String(error.cause_code), 10);
+        } else if (error.error_code != null) {
+          code = error.error_code as number | string;
+        } else if (error.code != null) {
+          code = error.code as number | string;
+        }
         if (code !== undefined) {
-          if (!errorsByCauseCode.has(code)) errorsByCauseCode.set(code, []);
-          errorsByCauseCode.get(code)!.push(error);
+          const numCode = typeof code === "number" ? code : parseInt(String(code), 10);
+          if (!isNaN(numCode)) {
+            if (!errorsByCauseCode.has(numCode)) errorsByCauseCode.set(numCode, []);
+            errorsByCauseCode.get(numCode)!.push(error);
+          }
         }
       });
 

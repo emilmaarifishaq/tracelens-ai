@@ -14,6 +14,7 @@ import {
   Search,
   Settings2,
   Shield,
+  Sparkles,
   Zap,
   Trash2,
 } from "lucide-react";
@@ -141,11 +142,19 @@ export default function Home() {
   const [ladderExportStatus, setLadderExportStatus] = useState<"idle" | "exporting" | "error">("idle");
   const [aiConfig, setAiConfig] = useState<AIProviderConfig>({
     apiKey: "",
-    provider: "rule-engine",
+    provider: "openai",
     model: "gpt-4o",
     webSearchEnabled: false,
     baseUrl: undefined,
   });
+
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem("tracelens_api_key");
+    if (savedApiKey) {
+      setAiConfig((prev) => ({ ...prev, apiKey: savedApiKey }));
+    }
+  }, []);
 
   const protocols = useMemo(
     () => result?.ai_context.trace_summary?.protocols?.join(", ") || "Waiting for trace",
@@ -334,7 +343,7 @@ export default function Home() {
     return bodyText.trim() || "Decode failed. Check API status and TShark availability.";
   }
 
-  async function explainTrace() {
+  async function explainTrace(provider: "rule-engine" | "openai" | "claude" | "gemini" | "azure" | "ollama" = "rule-engine") {
     if (!result) return;
     setAiStatus("analyzing");
 
@@ -370,16 +379,17 @@ export default function Home() {
         unique_cause_codes: Array.from(errorsByCauseCode.keys()),
       };
 
+      const useAi = provider !== "rule-engine";
       const response = await fetch(`${apiBaseUrl}/analysis/explain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ai_context: analysisContext,
           question: aiQuestion,
-          use_ai: aiConfig.provider !== "rule-engine",
+          use_ai: useAi,
           mask_identifiers: maskIdentifiers,
-          provider: aiConfig.provider,
-          ...(aiConfig.provider !== "rule-engine" && {
+          provider: provider,
+          ...(useAi && {
             api_key: aiConfig.apiKey,
             model: aiConfig.model,
             web_search_enabled: aiConfig.webSearchEnabled,
@@ -396,6 +406,13 @@ export default function Home() {
       setAiStatus("idle");
     } catch {
       setAiStatus("error");
+    }
+  }
+
+  function saveApiKey() {
+    if (aiConfig.apiKey.trim()) {
+      localStorage.setItem("tracelens_api_key", aiConfig.apiKey);
+      alert("API key saved successfully!");
     }
   }
 
@@ -488,6 +505,7 @@ export default function Home() {
                 config={aiConfig}
                 onConfigChange={setAiConfig}
                 onClose={() => {}}
+                onSaveApiKey={saveApiKey}
               />
               <button className="primary" onClick={uploadTrace} disabled={!files.length || status === "uploading"}>
                 <FileUp size={18} />
@@ -797,10 +815,26 @@ export default function Home() {
               />
               <span><Shield size={15} /> Mask identifiers</span>
             </label>
-            <button className="primary" onClick={explainTrace} disabled={!result || aiStatus === "analyzing"}>
-              <Brain size={18} />
-              {aiStatus === "analyzing" ? "Explaining" : getExplainButtonLabel(aiConfig.provider)}
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                className="primary"
+                onClick={() => explainTrace("rule-engine")}
+                disabled={!result || aiStatus === "analyzing"}
+                title="Use TraceLens rules without AI"
+              >
+                <Brain size={18} />
+                {aiStatus === "analyzing" ? "Explaining" : "Explain Locally"}
+              </button>
+              <button
+                className="primary"
+                onClick={() => explainTrace(aiConfig.provider as any)}
+                disabled={!result || aiStatus === "analyzing" || !aiConfig.apiKey}
+                title={aiConfig.apiKey ? "Use configured AI provider" : "API key required - set in Settings"}
+              >
+                <Sparkles size={18} />
+                {aiStatus === "analyzing" ? "Explaining" : `Explain with ${aiConfig.provider}`}
+              </button>
+            </div>
           </div>
           <div className="chatGptHandoff">
             <button onClick={copyChatGptPrompt} disabled={!result}>

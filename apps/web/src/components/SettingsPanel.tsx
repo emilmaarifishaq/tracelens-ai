@@ -15,6 +15,7 @@ interface SettingsPanelProps {
   config: AIProviderConfig;
   onConfigChange: (config: AIProviderConfig) => void;
   onClose: () => void;
+  onSaveApiKey?: (apiKey: string) => void;
 }
 
 function getApiKeyPlaceholder(provider: string): string {
@@ -104,6 +105,7 @@ export function SettingsPanel({
   config,
   onConfigChange,
   onClose,
+  onSaveApiKey,
 }: SettingsPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [apiKey, setApiKey] = useState(config.apiKey);
@@ -365,16 +367,24 @@ export function SettingsPanel({
                     placeholder={getApiKeyPlaceholder(provider)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-sm font-mono"
                   />
-                  <button
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="mt-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                  >
-                    {showApiKey ? "Hide" : "Show"}
-                  </button>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    >
+                      {showApiKey ? "Hide" : "Show"}
+                    </button>
+                    <button
+                      onClick={() => onSaveApiKey?.(apiKey)}
+                      disabled={!apiKey.trim()}
+                      className={`text-xs ${apiKey.trim() ? "text-blue-600 dark:text-blue-400 hover:underline" : "text-gray-400 cursor-not-allowed"}`}
+                    >
+                      💾 Save to Device
+                    </button>
+                  </div>
                   <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
                     <p>
-                      🔐 Your API key is only stored in browser memory (not
-                      saved)
+                      🔐 Save your API key to avoid re-entering it every time
                     </p>
                     <p>
                       Get one:{" "}
@@ -463,14 +473,15 @@ export function SettingsPanel({
               </div>
               <ul className="text-xs text-yellow-800 dark:text-yellow-300 space-y-1">
                 <li>
-                  • Upload PCAP → Trace decoded locally (rule engine always
-                  works)
+                  • Upload PCAP → TraceLens decodes locally
                 </li>
                 <li>
-                  • Click "Explain with AI" → Sends masked data to your AI
-                  provider
+                  • Click "Explain Locally" → Local rule-based analysis (always works)
                 </li>
-                <li>• AI explains root cause based on structured data</li>
+                <li>
+                  • Click "Explain with AI" → Sends masked data to your configured provider
+                </li>
+                <li>• API key saved to device - no need to re-enter</li>
                 <li>• Your PCAP bytes never leave your machine</li>
               </ul>
             </div>

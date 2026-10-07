@@ -180,6 +180,25 @@ export default function Home() {
   const hostFlows = result?.ai_context.trace_summary?.host_flows || [];
   const sessionDrilldowns = result?.ai_context.trace_summary?.session_drilldowns || [];
   const primaryError = result?.errors[0] || null;
+
+  // Filter failure timeline and errors based on cause code filter
+  const filteredFailureTimeline = useMemo(() => {
+    if (filterByCauseCode === null) return failureTimeline;
+    const causesForFilter = errorsByCauseCode.get(filterByCauseCode);
+    if (!causesForFilter) return [];
+    return failureTimeline.filter((item: Record<string, unknown>) =>
+      causesForFilter.has(String(item.frame))
+    );
+  }, [filterByCauseCode, failureTimeline, errorsByCauseCode]);
+
+  const filteredErrors = useMemo(() => {
+    if (filterByCauseCode === null) return result?.errors || [];
+    const causesForFilter = errorsByCauseCode.get(filterByCauseCode);
+    if (!causesForFilter) return [];
+    return (result?.errors || []).filter((error: Record<string, unknown>) =>
+      causesForFilter.has(String(error.frame))
+    );
+  }, [filterByCauseCode, result?.errors, errorsByCauseCode]);
   const selectedHostDrilldown = useMemo(
     () => findSessionDrilldown(sessionDrilldowns, selectedHostFlow),
     [sessionDrilldowns, selectedHostFlow],
@@ -676,7 +695,7 @@ export default function Home() {
               setSearchText(String(flow.host || firstString(flow.urls) || ""));
             }}
           />
-          <FailureTimeline timeline={failureTimeline} onSelectFrame={setSelectedFrame} />
+          <FailureTimeline timeline={filteredFailureTimeline} onSelectFrame={setSelectedFrame} />
         </section>
 
         <HostSessionDrilldown
@@ -811,7 +830,7 @@ export default function Home() {
               <span>{result?.filename || "No trace loaded"}</span>
             </div>
             <div className="list">
-              {(result?.errors || []).slice(0, 8).map((error) => (
+              {filteredErrors.slice(0, 8).map((error: Record<string, unknown>) => (
                 <article className="errorItem" key={`${error.protocol}-${error.frame}-${error.code}`}>
                   <strong>{String(error.error)}</strong>
                   <span>
@@ -828,7 +847,7 @@ export default function Home() {
                   )}
                 </article>
               ))}
-              {!result?.errors.length && <p className="empty">No decoded issues yet.</p>}
+              {!filteredErrors.length && <p className="empty">{filterByCauseCode !== null ? "No issues for this cause code." : "No decoded issues yet."}</p>}
             </div>
           </div>
 

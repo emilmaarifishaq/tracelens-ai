@@ -231,6 +231,9 @@ export default function ErrorBreakdownPage() {
 
                   {selectedCause === error.code && (
                     <button
+                      onClick={() => {
+                        alert(`Next Steps for Cause ${error.code}:\n\n1. Go to Analyzer\n2. Filter by cause code ${error.code}\n3. Review ${error.count} occurrences\n4. Examine key frames: ${error.frames.join(", ")}\n5. Check timeline: ${error.timeline}`);
+                      }}
                       style={{
                         marginTop: "12px",
                         width: "100%",

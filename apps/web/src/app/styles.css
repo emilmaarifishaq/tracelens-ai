@@ -565,7 +565,7 @@ h1 {
   align-items: end;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(260px, 1fr) 180px 130px;
+  grid-template-columns: minmax(260px, 1fr) 180px minmax(340px, auto);
   padding: 16px;
 }
 

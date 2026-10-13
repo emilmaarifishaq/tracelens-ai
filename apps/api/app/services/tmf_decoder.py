@@ -137,28 +137,36 @@ class TMFDecoder:
                 "message": f"TMF Message ({len(data)} bytes)",
             }
 
-            # Try to extract protocol indicators from message
-            # Look for common protocol markers
-            if b"DIA" in data:
-                event["protocol"] = "Diameter"
-                event["message"] = "Diameter signaling"
-            elif b"GTP" in data or b"\x20" in data[:1]:
-                event["protocol"] = "GTP"
-                event["message"] = "GTP signaling"
-            elif b"HTTP" in data or b"\x88" in data[:1]:
-                event["protocol"] = "HTTP2-SBI"
-                event["message"] = "HTTP/2 SBI (5G Service Based Interface)"
-            elif b"NGAP" in data or b"\x00\x0c" in data:
-                event["protocol"] = "NGAP"
-                event["message"] = "NGAP (RAN signaling)"
-            elif b"PFCP" in data or b"\x20" in data[:1]:
-                event["protocol"] = "PFCP"
-                event["message"] = "PFCP (SMF-UPF control)"
-
-            # Extract any readable strings (FQDN, hostnames, etc.)
+            # Extract strings first for UDM detection
             strings = self._extract_strings(data)
             if strings:
                 event["strings"] = strings
+
+            # Check for UDM traffic (5G core network)
+            if strings and any("udm" in s.lower() or "ausf" in s.lower() or "nrf" in s.lower() for s in strings):
+                event["protocol"] = "HTTP2-SBI"
+                event["message"] = "HTTP/2 SBI - UDM/AUSF (5G Service Based Interface)"
+                return event
+
+            # Protocol detection with improved heuristics
+            if b"DIA" in data or b"Diameter" in data:
+                event["protocol"] = "Diameter"
+                event["message"] = "Diameter signaling (AAA)"
+            elif b"GTP" in data or (len(data) > 0 and data[0] in (0x20, 0x30, 0x40)):
+                event["protocol"] = "GTP"
+                event["message"] = "GTP signaling (4G/5G user/control plane)"
+            elif b"HTTP" in data or b"POST" in data or b"GET" in data or b"Content-Type" in data:
+                event["protocol"] = "HTTP2-SBI"
+                event["message"] = "HTTP/2 SBI (5G Service Based Interface)"
+            elif b"NGAP" in data or (len(data) > 1 and data[:2] == b"\x00\x0c"):
+                event["protocol"] = "NGAP"
+                event["message"] = "NGAP (5G RAN signaling)"
+            elif b"PFCP" in data or (len(data) > 0 and data[0] == 0x20):
+                event["protocol"] = "PFCP"
+                event["message"] = "PFCP (SMF-UPF control plane)"
+            elif strings and any("3gppnetwork" in s for s in strings):
+                event["protocol"] = "HTTP2-SBI"
+                event["message"] = "HTTP/2 SBI with 5G network element"
 
             return event
 

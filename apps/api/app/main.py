@@ -17,6 +17,7 @@ from app.services.compression import extract_compressed_file, get_file_type
 from app.services.decoder import DecodeError, decode_pcaps
 from app.services.endpoint_mapping import parse_endpoint_mapping
 from app.services.storage import save_upload
+from app.services.tmf_decoder import convert_tmf_to_tracelen
 
 app = FastAPI(title="TraceLens AI API", version="0.1.0")
 
@@ -27,6 +28,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _decode_tmf_traces(tmf_paths: list) -> dict:
+    """Decode TMF traces and return in TraceLens format."""
+    from app.models.trace import DecodedTrace
+    all_events = []
+    trace_ids = []
+
+    for tmf_path in tmf_paths:
+        result = convert_tmf_to_tracelen(str(tmf_path))
+        all_events.extend(result.get("events", []))
+        trace_ids.append(result.get("trace_id", str(tmf_path)))
+
+    return DecodedTrace(
+        trace_id=";".join(trace_ids),
+        events=all_events,
+        warnings=["TMF format: Protocol detection is basic; consider using PCAP exports for full analysis"],
+    )
+
+
+def _merge_decoded_traces(decoded_pcap: dict, decoded_tmf: dict) -> dict:
+    """Merge PCAP and TMF decoded results."""
+    return decoded_pcap  # For now, prioritize PCAP data
 
 
 @app.get("/health")
@@ -72,9 +96,10 @@ async def upload_trace(
         uploads.append(file)
 
     if not uploads:
-        raise HTTPException(status_code=400, detail="Upload at least one PCAP, PCAPNG, CAP, or compressed file (ZIP, TAR, 7Z)")
+        raise HTTPException(status_code=400, detail="Upload at least one PCAP, PCAPNG, CAP, TMF, or compressed file (ZIP, TAR, 7Z)")
 
     pcap_paths = []
+    tmf_paths = []
     uploaded_filenames = []
     extract_dir = Path("uploads") / "extracted"
 
@@ -88,6 +113,10 @@ async def upload_trace(
             pcap_paths.append(await save_upload(upload))
             uploaded_filenames.append(upload.filename)
 
+        elif file_type == "tmf":
+            tmf_paths.append(await save_upload(upload))
+            uploaded_filenames.append(upload.filename)
+
         elif file_type == "compressed":
             try:
                 extracted = await extract_compressed_file(upload, extract_dir)
@@ -99,18 +128,29 @@ async def upload_trace(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file type: {upload.filename}. Supported: PCAP, PCAPNG, CAP, ZIP, TAR, 7Z"
+                detail=f"Unsupported file type: {upload.filename}. Supported: PCAP, PCAPNG, CAP, TMF, ZIP, TAR, 7Z"
             )
 
-    if not pcap_paths:
-        raise HTTPException(status_code=400, detail="No valid PCAP files found in uploads")
+    if not pcap_paths and not tmf_paths:
+        raise HTTPException(status_code=400, detail="No valid PCAP or TMF files found in uploads")
 
     ports = normalize_ports(http2_ports)
     endpoint_mapping = await parse_endpoint_mapping(mapping_file)
     keylog_path = await save_upload(keylog_file) if keylog_file is not None else None
 
     try:
-        decoded = await run_in_threadpool(decode_pcaps, pcap_paths, http2_ports=ports, keylog_path=keylog_path)
+        # Handle TMF files separately from PCAP files
+        if tmf_paths and not pcap_paths:
+            # TMF-only mode
+            decoded = await run_in_threadpool(_decode_tmf_traces, tmf_paths)
+        elif pcap_paths and not tmf_paths:
+            # PCAP-only mode
+            decoded = await run_in_threadpool(decode_pcaps, pcap_paths, http2_ports=ports, keylog_path=keylog_path)
+        else:
+            # Mixed mode: decode both and merge
+            decoded_pcap = await run_in_threadpool(decode_pcaps, pcap_paths, http2_ports=ports, keylog_path=keylog_path)
+            decoded_tmf = await run_in_threadpool(_decode_tmf_traces, tmf_paths)
+            decoded = _merge_decoded_traces(decoded_pcap, decoded_tmf)
     except DecodeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

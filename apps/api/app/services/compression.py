@@ -9,6 +9,7 @@ from fastapi import UploadFile
 
 COMPRESSED_EXTENSIONS = {".zip", ".tar", ".tar.gz", ".tgz", ".7z"}
 PCAP_EXTENSIONS = {".pcap", ".pcapng", ".cap"}
+TMF_EXTENSIONS = {".tmf"}
 
 
 def is_compressed_file(filename: str) -> bool:
@@ -123,9 +124,11 @@ async def extract_compressed_file(
 
 
 def get_file_type(filename: str) -> str:
-    """Determine file type: 'compressed' or 'pcap'."""
+    """Determine file type: 'compressed', 'pcap', 'tmf', or 'unknown'."""
     if is_compressed_file(filename):
         return "compressed"
     elif any(filename.lower().endswith(ext) for ext in PCAP_EXTENSIONS):
         return "pcap"
+    elif any(filename.lower().endswith(ext) for ext in TMF_EXTENSIONS):
+        return "tmf"
     return "unknown"
